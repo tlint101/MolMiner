@@ -331,22 +331,26 @@ class ModelMetrics:
         labels = label if isinstance(label, list) else ([label] if label is not None else [])
 
         # loop through models list
-        for i, mod in enumerate(models):
+        for i, model in enumerate(models):
             current_color = colors[i] if i < len(colors) else None
             base_label = labels[i] if i < len(labels) else f"Model {i + 1}"
 
-            if hasattr(mod, "predict_proba"):
+            if hasattr(model, "predict_proba"):
+                # matplotlib kwargs
+                mpl_kwargs = {"color": current_color}
+                if kwargs:
+                    mpl_kwargs.update(kwargs)
                 # ROC Curve
-                RocCurveDisplay.from_estimator(mod, X_test, y_test, ax=ax, color=current_color, **kwargs)
+                RocCurveDisplay.from_estimator(model, X_test, y_test, ax=ax, curve_kwargs=mpl_kwargs)
                 # calculate score
                 # get proba
-                y_prob = mod.predict_proba(X_test)[:, 1]
+                y_prob = model.predict_proba(X_test)[:, 1]
                 auc_score = roc_auc_score(y_test, y_prob)
                 # update label
                 ax.get_lines()[-1].set_label(f"{base_label} (AUC = {auc_score:.3f})")
             else:
                 # keras model
-                y_score = mod.predict(X_test)
+                y_score = model.predict(X_test)
                 if y_score.shape[1] > 1:
                     y_score = y_score[:, 1]
 
@@ -419,6 +423,8 @@ class ModelMetrics:
             base_label = labels[i] if i < len(labels) else f"Model {i + 1}"
 
             if hasattr(mod, "predict_proba"):
+                # matplotlib kwargs
+                mpl_kwargs = kwargs if kwargs else {}
                 # PrecisionRecall
                 PrecisionRecallDisplay.from_estimator(mod, X_test, y_test, ax=ax, color=current_color, **kwargs)
                 # calculate score
