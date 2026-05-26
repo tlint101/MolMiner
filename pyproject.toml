@@ -1,6 +1,6 @@
 [project]
 name = "MolMiner"
-version = "0.1.0"
+version = "0.0.1"
 readme = "README.md"
 description = ""
 authors = [
@@ -31,7 +31,6 @@ dependencies = [
     "transformers<5.0.0", # update to > 5.0.0 when SAFE is updated
     "scikeras>=0.13.0",
     "meeko>=0.6.1",
-    "autodocktools-py3 @ git+https://github.com/Valdes-Tresanco-MS/AutoDockTools_py3",
 ]
 
 [project.optional-dependencies]
