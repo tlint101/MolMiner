@@ -1,40 +1,33 @@
-name: piki-toolsets
+name: MolMiner
 channels:
   - conda-forge
   - defaults
 dependencies:
   - python>=3.11
-  - matplotlib-base>=3.8.2
-  - numpy<2
-  - pandas=2.0.0
-  - rdkit>=2023.09.5
-  - seaborn>=0.12.2
-  - datamol>=0.12.4
-  - openbabel>=3.1.1
-  - boost  # for autodock
+  - numpy
+  - seaborn
+  - openbabel
+  - vina
   - swig  # for autodock
   - pip
   - pip:
-      - notebook==7.0.6
-      - scikit-learn>=1.6.1
-      - keras>=3.3.3
-      - torch==2.1.0 # torch==2.3.0 has deprecated code. update torch when keras updates.
-      - torch_geometric
-      - optuna>=4.2.1
-      - scipy>=1.11.4
+      - notebook
+      - pandas
+      - rdkit
+      - scikit-learn
+      - keras
+      - torch
+      - optuna
+      - scipy
       - tqdm
       - legendkit
-      - umap-learn>=0.5.6
+      - umap-learn
       - splito
-      - safe-mol
+      - safe-mol==0.1.14
+      - transformers<5.0.0  # for safe-mol
       - mols2grid
-      - black
-      - prolif>=2.0.3
-      - fastcluster
-      - xgboost==2.1.4
-      - graphviz
-      - shap
-      - vina
+      - prolif
+      - xgboost
       - meeko
+      - gemmi  # meeko dependency
       - git+https://github.com/Valdes-Tresanco-MS/AutoDockTools_py3 # AutoDock Tools py3 translation
-      # - modin # for using more cpus in df processing
