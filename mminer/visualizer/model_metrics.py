@@ -290,7 +290,7 @@ class ModelMetrics:
     def plot_ROC(self, model: Union[list, BaseEstimator, object] = None, X_test=None, y_test=None,
                  title: str = None, label: Union[str, list] = None, color: Union[str, list] = None,
                  legend_loc: str = "lower right", figsize: tuple[float, float] = (10, 5), fontsize: int = 12,
-                 titlesize: int = 15, savepath: str = None, **kwargs):
+                 titlesize: int = 15, grid: bool = False, savepath: str = None, **kwargs):
         """
         Plot ROC Curve. Can be for a single model or a list of models.
         :param model: [list, BaseEstimator, object]
@@ -313,6 +313,8 @@ class ModelMetrics:
             Font size for axis
         :param titlesize: int
             Font size for title
+        :param grid: bool
+            Set grid.
         :param savepath: str
             Filepath to save figure.
         :param kwargs:
@@ -331,26 +333,22 @@ class ModelMetrics:
         labels = label if isinstance(label, list) else ([label] if label is not None else [])
 
         # loop through models list
-        for i, model in enumerate(models):
+        for i, mod in enumerate(models):
             current_color = colors[i] if i < len(colors) else None
             base_label = labels[i] if i < len(labels) else f"Model {i + 1}"
 
-            if hasattr(model, "predict_proba"):
-                # matplotlib kwargs
-                mpl_kwargs = {"color": current_color}
-                if kwargs:
-                    mpl_kwargs.update(kwargs)
+            if hasattr(mod, "predict_proba"):
                 # ROC Curve
-                RocCurveDisplay.from_estimator(model, X_test, y_test, ax=ax, curve_kwargs=mpl_kwargs)
+                RocCurveDisplay.from_estimator(mod, X_test, y_test, ax=ax, color=current_color, **kwargs)
                 # calculate score
                 # get proba
-                y_prob = model.predict_proba(X_test)[:, 1]
+                y_prob = mod.predict_proba(X_test)[:, 1]
                 auc_score = roc_auc_score(y_test, y_prob)
                 # update label
                 ax.get_lines()[-1].set_label(f"{base_label} (AUC = {auc_score:.3f})")
             else:
                 # keras model
-                y_score = model.predict(X_test)
+                y_score = mod.predict(X_test)
                 if y_score.shape[1] > 1:
                     y_score = y_score[:, 1]
 
@@ -362,7 +360,7 @@ class ModelMetrics:
         ax.plot([0, 1], [0, 1], color='gainsboro', linestyle='--', label='Chance')
 
         if title is None: title = "ROC Curves"
-        plt.grid(False)
+        plt.grid(grid)
         plt.ylim([0.0, 1.05])
         plt.xlabel("False Positive Rate", fontsize=fontsize)
         plt.ylabel("True Positive Rate", fontsize=fontsize)
@@ -376,7 +374,7 @@ class ModelMetrics:
     def plot_PR(self, model: Union[list, object] = None, X_test=None, y_test=None,
                 title: str = None, label: Union[str, list] = None, color: Union[str, list] = None,
                 legend_loc: str = "lower right", figsize: tuple[float, float] = (10, 5),
-                fontsize: int = 12, titlesize: int = 15, savepath: str = None, **kwargs):
+                fontsize: int = 12, titlesize: int = 15, grid: bool = False, savepath: str = None, **kwargs):
         """
         Plot Precision-Recall Curve. Can be for a single model or a list of models.
         :param model: Union[list, BaseEstimator]
@@ -399,6 +397,8 @@ class ModelMetrics:
             Font size for axis
         :param titlesize: int
             Font size for title
+        :param grid: bool
+            Set grid.
         :param savepath: str
             Filepath to save figure.
         :param kwargs:
@@ -423,8 +423,6 @@ class ModelMetrics:
             base_label = labels[i] if i < len(labels) else f"Model {i + 1}"
 
             if hasattr(mod, "predict_proba"):
-                # matplotlib kwargs
-                mpl_kwargs = kwargs if kwargs else {}
                 # PrecisionRecall
                 PrecisionRecallDisplay.from_estimator(mod, X_test, y_test, ax=ax, color=current_color, **kwargs)
                 # calculate score
@@ -444,7 +442,7 @@ class ModelMetrics:
                 ax.plot(recall, precision, color=current_color, label=f"{base_label} (AUC = {auprc_score:.3f})")
 
         if title is None: title = "Precision-Recall Curves"
-        plt.grid(False)
+        plt.grid(grid)
         plt.xlim([0.0, 1.05])
         plt.ylim([0.0, 1.05])
         plt.xlabel("Recall", fontsize=fontsize)
