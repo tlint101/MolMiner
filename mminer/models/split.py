@@ -30,23 +30,12 @@ class Splitter:
     @staticmethod
     def MOODSplitter_list():
         print(
-            "Splitters Tested: Random, Scaffold, Perimeter, MaxDissimilarity, MolecularMinxMaxSplit, MolecularWeight, and KMeansSplit."
-        )
+            "Splitters Tested: Random, Scaffold, Perimeter, MaxDissimilarity, MolecularMinxMaxSplit, MolecularWeight, and KMeansSplit.")
 
-    def MOODSplitter(
-            self,
-            splitters: Optional[dict] = None,
-            smiles: np.ndarray = None,
-            features: np.ndarray = None,
-            label: np.ndarray = None,
-            library_feat: np.ndarray = None,
-            test_size: float = 0.2,
-            n_splits: int = 10,
-            n_clusters: int = 10,
-            cutoff: float = 0.5,
-            seed: int = 42,
-            verbose: bool = False,
-    ):
+    def MOODSplitter(self, splitters: Optional[dict] = None, smiles: np.ndarray = None, features: np.ndarray = None,
+                     label: np.ndarray = None, library_feat: np.ndarray = None, test_size: float = 0.2,
+                     n_splits: int = 10, n_clusters: int = 10, cutoff: float = 0.5, seed: int = 42,
+                     verbose: bool = False):
         """
         Split the dataset according to MOODProtocol. This will test different type of splitters.
         :param splitters: dict
@@ -85,12 +74,7 @@ class Splitter:
         splitters = splito.MOODSplitter(splitters, n_jobs=-1)
 
         # fit data to the MOOD protocol and save to instance variable
-        splitters.fit(
-            X=np.stack(features),
-            X_deployment=np.stack(library_feat),
-            y=label,
-            progress=verbose,
-        )
+        splitters.fit(X=np.stack(features), X_deployment=np.stack(library_feat), y=label, progress=verbose)
 
         # output best result as a pd.DataFrame
         best_result = splitters.get_protocol_results()
@@ -212,14 +196,52 @@ class Splitter:
 
         return X_train, X_test, y_train, y_test
 
-    def train_test_split(self,
-                         data: pd.DataFrame = None,
-                         smi_col: str = None,
-                         split: str = 'Random',
-                         split_col: str = None,
-                         test_size: float = 0.2,
-                         cutoff: float = 0.65,
-                         n_clusters: int = 10,
+    def test_split(self, data: Optional[pd.DataFrame] = None, feat_col: Optional[Union[str, list]] = None,
+                   label_col: str = None):
+        """
+        For preparing a test set. No split column is needed. Assumes data will all be used for metrics.
+        :param data: pd.DataFrame
+            Input pd.DataFrame for splitting into train/test sets.
+        :param feat_col: Optional[Union[str, list]]
+            Columns headers containing features. Users can a list of column headers for the features. As the strings are
+            filterd using "startswith()", a common string should suffice. Or for a specific feature column can be given
+            as a single column header string. For example, 'fp_' to obtain feature columns labeled as 'fp_0', 'fp_1', etc.
+        :param label_col: str
+            Column containing the activity labels.
+        :return y_feats, y_labels
+        """
+        global y_feats
+        if data is None:
+            data = self.data
+
+        # Get features. input is a str, convert to a list
+        if isinstance(feat_col, str):
+            y_feats = data.loc[:, data.columns.str.startswith(feat_col)]
+        elif isinstance(feat_col, list):
+            # extract matching cols
+            matched_cols = []
+            for col_str in feat_col:
+                # set potential wildcard matching
+                pattern = col_str.replace('*', '.*')
+                # match columns that fit pattern
+                matched_cols.extend([col for col in data.columns if re.search(pattern, col, re.IGNORECASE)])
+
+            # Remove duplicates and keep original order
+            matched_cols = list(dict.fromkeys(matched_cols))
+
+            if matched_cols:
+                y_feats = data[matched_cols]
+            else:
+                raise ValueError("No matches to cols input!")
+
+        # Get activity labels and flatten label array
+        y_labels = data.loc[:, data.columns.str.startswith(label_col)]
+        y_labels = y_labels.squeeze()
+
+        return y_feats, y_labels
+
+    def train_test_split(self, data: pd.DataFrame = None, smi_col: str = None, split: str = 'Random',
+                         split_col: str = None, test_size: float = 0.2, cutoff: float = 0.65, n_clusters: int = 10,
                          seed: int = 42):
         # todo add option for a val section
         # todo rename to just "split"?
@@ -272,11 +294,7 @@ class Splitter:
 
         return data
 
-    def repeated_kfold(self,
-                       data: pd.DataFrame = None,
-                       split_size: int = 5,
-                       repeat: int = 5,
-                       seed: int = 42):
+    def repeated_kfold(self, data: pd.DataFrame = None, split_size: int = 5, repeat: int = 5, seed: int = 42):
         """
         Split the dataset using RepeatedKFold. The script is used to more easily generate 5X5 repeated CV as suggested by
         Ash et al. DOI: 10.1021/acs.jcim.5c01609
@@ -468,12 +486,7 @@ class CrossVal(Splitter):
 
         return data
 
-    def extract_cv(
-            self,
-            feat_col: Union[list, str] = None,
-            label_col: str = None,
-            cv: int = 5,
-    ):
+    def extract_cv(self, feat_col: Union[list, str] = None, label_col: str = None, cv: int = 5):
         """
         Extract features and labels from the DataFrame and place into separate DataFrame tables.
         :param feat_col: Union[list, str]
@@ -511,18 +524,9 @@ class CrossVal(Splitter):
 
         return self._X_features, self._y_labels
 
-    def get_cv_scores(
-            self,
-            features: pd.DataFrame,
-            labels: pd.DataFrame,
-            model: Union[str, BaseEstimator, keras.Model],
-            cv: int = 5,
-            hyperparams: Optional[dict] = None,
-            prob_cutoff: float = 0.5,
-            epochs: Optional[int] = None,
-            batch_size: Optional[int] = None,
-            callbacks: Optional = None
-    ):
+    def get_cv_scores(self, features: pd.DataFrame, labels: pd.DataFrame, model: Union[str, BaseEstimator, keras.Model],
+                      cv: int = 5, hyperparams: Optional[dict] = None, prob_cutoff: float = 0.5,
+                      epochs: Optional[int] = None, batch_size: Optional[int] = None, callbacks: Optional = None):
         """
         Obtain Cross Validation Scores for a given model. This is a custom script created to fit the .csv due to my
         molecular splits. Models will output the model, an array of CV scores and the CV mean.
@@ -633,35 +637,23 @@ class CrossVal(Splitter):
         mcc_list = []
         roc_auc_score_list = []
 
-        acc_score = cross_val_score(
-            model, features, labels, cv=cv_index, scoring="accuracy", n_jobs=-1
-        )
+        acc_score = cross_val_score(model, features, labels, cv=cv_index, scoring="accuracy", n_jobs=-1)
+        f1_test = cross_val_score(model, features, labels, cv=cv_index, scoring="f1", n_jobs=-1)
+        recall = cross_val_score(model, features, labels, cv=cv_index, scoring="recall", n_jobs=-1)
+        precision = cross_val_score(model, features, labels, cv=cv_index, scoring="precision", n_jobs=-1)
+        mcc = cross_val_score(model, features, labels, cv=cv_index, scoring="matthews_corrcoef", n_jobs=-1)
+        roc_auc = cross_val_score(model, features, labels, cv=cv_index, scoring="roc_auc", n_jobs=-1)
+
         acc_list.append(acc_score)
-        f1_test = cross_val_score(
-            model, features, labels, cv=cv_index, scoring="f1", n_jobs=-1
-        )
         f1_list.append(f1_test)
-        recall = cross_val_score(
-            model, features, labels, cv=cv_index, scoring="recall", n_jobs=-1
-        )
         recall_list.append(recall)
-        precision = cross_val_score(
-            model, features, labels, cv=cv_index, scoring="precision", n_jobs=-1
-        )
         precision_list.append(precision)
-        mcc = cross_val_score(
-            model, features, labels, cv=cv_index, scoring="matthews_corrcoef", n_jobs=-1
-        )
         mcc_list.append(mcc)
-        roc_auc = cross_val_score(
-            model, features, labels, cv=cv_index, scoring="roc_auc", n_jobs=-1
-        )
         roc_auc_score_list.append(roc_auc)
 
         # Get score averages
-        results_dict = CrossVal.setup_results_dict(
-            acc_list, f1_list, mcc_list, model_name, precision_list, recall_list, roc_auc_score_list
-        )
+        results_dict = CrossVal.setup_results_dict(acc_list, f1_list, mcc_list, model_name, precision_list, recall_list,
+                                                   roc_auc_score_list)
 
         return results_dict
 
