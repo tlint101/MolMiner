@@ -14,8 +14,9 @@ dependencies:
       - notebook
       - pandas
       - rdkit
-      - scikit-learn
+      - scikit-learn==1.6.1
       - keras
+      - scikeras
       - torch
       - optuna
       - scipy
@@ -23,7 +24,7 @@ dependencies:
       - legendkit
       - umap-learn
       - splito
-      - safe-mol==0.1.14
+      - safe-mol==0.1.13
       - transformers<5.0.0  # for safe-mol
       - mols2grid
       - prolif
