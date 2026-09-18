@@ -13,8 +13,9 @@ import splito
 from tqdm import tqdm
 import datamol as dm
 from rdkit import Chem
-from rdkit.Chem import rdMolDescriptors, Draw, DataStructs, PandasTools
+from rdkit.Chem import rdMolDescriptors, Draw, DataStructs
 from mminer.features.fingerprint import Fingerprint
+from mminer.utils.fingerprint_misc import smiles_to_fp
 from mminer.features.build import Score
 from typing import Union
 
@@ -439,7 +440,7 @@ class Similarity:
         return pd.DataFrame(diverse_df)
 
     def similarity_matrix(self, data: pd.DataFrame = None, name_col: str = None, smi_col: str = None,
-                          radius: int = 2, nBits: int = 2048):
+                          fp_type: str = "morgan", radius: int = 2, nBits: int = 2048):
         """
         Get a pd.DataFrame of the similarity matrix. Results are not yet clustered. By default, the similarity matrix 
         will convert the molecules into circular (Morgan) fingerprints.  
@@ -450,10 +451,13 @@ class Similarity:
             Column designating the compound names.
         :param smi_col: str
             Column designating the smiles string.
+        :param fp_type: str
+            Fingerprint type used to compare the molecules. One of 'morgan', 'feature_morgan', 'atompair', 'rdkit',
+            'torsion' or 'maccs'. Defaults to 'morgan'.
         :param radius: int
-            Set the radius.  
+            Set the radius. Ignored unless a Morgan fingerprint is used.  
         :param nBits: int
-            Set the number of bits for the molecular fingerprint. 
+            Set the number of bits for the molecular fingerprint. Ignored if 'maccs' is used. 
         :return:
         """
 
@@ -468,21 +472,11 @@ class Similarity:
         # Create list for Tanimoto scores
         Tanimoto = []
 
-        # Add ROMol to DataFrame
-        PandasTools.AddMoleculeColumnToFrame(data, smilesCol=smi_col)
+        # generate fingerprints once for the whole set
+        bulk_fp = [smiles_to_fp(smi=x, method=fp_type, radius=radius, nbits=nBits, bitvector=True)
+                   for x in data[smi_col]]
 
-        for compound in data[smi_col]:
-            # Create references for smiles, molecules, fingerprints
-            ref_smiles = compound
-            ref_mol = Chem.MolFromSmiles(ref_smiles)
-
-            # generate morgan fingerprints
-            fp_generator = Chem.rdFingerprintGenerator.GetMorganGenerator(radius=radius, fpSize=nBits)
-
-            # get reference fingerprint
-            ref_fp = fp_generator.GetFingerprint(ref_mol)
-            bulk_fp = [fp_generator.GetFingerprint(x) for x in data['ROMol']]
-
+        for ref_fp in bulk_fp:
             # Similarity to reference molecule
             similarity = [DataStructs.FingerprintSimilarity(ref_fp, x) for x in bulk_fp]
 
