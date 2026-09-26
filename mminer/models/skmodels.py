@@ -77,11 +77,9 @@ class Models:
             # if hyperparams file path given
             if isinstance(hyperparams, str):
                 # set model short name to model to obtain hyperparam dictionary and unpack
-                model = pulled_model
                 params = self._hyperparams(hyperparams)
                 return pulled_model(**params)
             elif isinstance(hyperparams, dict):
-                model = pulled_model
                 return pulled_model(**hyperparams)
             else:
                 # return default model

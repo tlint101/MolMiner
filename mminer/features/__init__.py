@@ -1,12 +1,29 @@
 """
 Initialize classes for features
 """
+from mminer._optional import lazy_exports
 
-from .build import SAFEbuild, BRICSBuild, Score
-from .descriptions import Frag_Matching
-from .fingerprint import Fingerprint
-from .fragmentation import Fragmentation
-from .matching import Matching
-from .mol_prep import sanitizer
+# load modules
+_exports = {
+    "SAFEbuild": "build",
+    "BRICSBuild": "build",
+    "Score": "scoring",
+    "Frag_Matching": "descriptions",
+    "Fingerprint": "fingerprint",
+    "Fragmentation": "fragmentation",
+    "Matching": "matching",
+    "sanitizer": "mol_prep",
+}
 
-__all__ = ["SAFEbuild", "BRICSBuild", "Score", "Frag_Matching", "Fingerprint", "Fragmentation", "Matching", "sanitizer"]
+__all__ = [
+    "SAFEbuild",
+    "BRICSBuild",
+    "Score",
+    "Frag_Matching",
+    "Fingerprint",
+    "Fragmentation",
+    "Matching",
+    "sanitizer",
+]
+
+__getattr__, __dir__ = lazy_exports(__name__, _exports)

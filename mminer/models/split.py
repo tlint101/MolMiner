@@ -2,6 +2,10 @@
 Scripts to extract information from a pd.DataFrame. Data should be split previously using the utils.split() module.
 Following scripts will present CV splitting and CV scoring based on the pd.DataFrame input
 """
+import os
+
+os.environ.setdefault("KERAS_BACKEND", "torch")
+
 import keras
 import re
 import pandas as pd

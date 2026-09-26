@@ -5,7 +5,6 @@ import itertools
 import fsspec
 from typing import Optional, List, Union
 from collections import defaultdict
-import safe as sf
 import datamol as dm
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
@@ -16,6 +15,8 @@ from rdkit.Chem.Draw import rdMolDraw2D
 from IPython.display import SVG, Image
 from PIL import Image as pilImage
 from io import BytesIO
+
+from mminer._optional import require
 
 __all__ = ["Analogs", "RDKitHighlight", "Draw"]
 
@@ -235,6 +236,8 @@ class Draw:
             mol = self.mol
         if fragments is None:
             fragments = self.fragments
+
+        sf = require("safe", "safe", "Draw.safe_highlight")
 
         # convert mol smiles into safe string
         safe_str = sf.encode(mol, slicer=slicer)

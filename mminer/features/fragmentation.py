@@ -4,12 +4,12 @@ Fragment molecules using BRICS algorithm in RDKit
 
 import re
 import pandas as pd
-from mminer.features import Score
+from mminer._optional import require
+from mminer.features.scoring import Score
 from rdkit import Chem
 from rdkit.Chem import BRICS
 from tqdm import tqdm
 import datamol as dm
-import safe as sf
 import warnings
 # 1. Move this to the absolute top, before any other imports
 warnings.filterwarnings("ignore", message=".*is part of SAFedoubeHeadsModel.forward's signature.*")
@@ -327,6 +327,8 @@ class Fragmentation:
 
         :return: A list of molecules or RDKit Molecules
         """
+
+        sf = require("safe", "safe", "SAFE fragment decoding")
 
         frag_list = []
 
@@ -925,6 +927,8 @@ def _safe_fragmentlogic(
     """
     Logic for fragment_mol()
     """
+    sf = require("safe", "safe", "SAFE fragmentation")
+
     if desc is None:
         desc = "Fragmenting Compound: "
 

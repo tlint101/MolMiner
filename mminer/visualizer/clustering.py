@@ -12,13 +12,11 @@ from rdkit.ML.Cluster import Butina
 from sklearn.cluster import KMeans, MiniBatchKMeans
 from mminer.features.fingerprint import Fingerprint
 
-
 __all__ = ["Cluster"]
 
 
 class Cluster:
-    def __init__(
-            self, data: pd.DataFrame = None, smi_col: str = None):
+    def __init__(self, data: pd.DataFrame = None, smi_col: str = None):
         """
         InitializeCluster class
         :param data: pd.DataFrame
@@ -46,17 +44,8 @@ class Cluster:
             # print("rows are given!") # for troubleshooting
             return returned_df.head(rows)
 
-    def butina(
-            self,
-            data: pd.DataFrame = None,
-            smi_col: str = None,
-            cutoff: float = 0.2,
-            method: str = "morgan",
-            radius: int = 2,
-            nbits: int = 2048,
-            output: str = "all",
-            verbose: bool = False,
-    ):
+    def butina(self, data: pd.DataFrame = None, smi_col: str = None, cutoff: float = 0.2, method: str = "morgan",
+               radius: int = 2, nbits: int = 2048, output: str = "all", verbose: bool = False):
         """
         Cluster molecules. Input data should be molecules as DataFrame. Has parameters that can be changed. If none,
         will only include default params from initialization. Function will calculate fingerprints, similarity of every
@@ -182,18 +171,9 @@ class Cluster:
                 "Output must be either 'all', 'centroid' or 'max' or 'min'"
             )
 
-    def kmeans(self,
-               data: pd.DataFrame = None,
-               clusters: int = 3,
-               method: str = 'kmeans',
-               batch_size: int = 100,
-               smi_col: str = None,
-               fp_method: str = "morgan",
-               radius: int = 2,
-               nbits: int = 2048,
-               verbose: int = 0,
-               seed: int = 42
-               ):
+    def kmeans(self, data: pd.DataFrame = None, clusters: int = 3, method: str = 'kmeans', batch_size: int = 100,
+               smi_col: str = None, fp_method: str = "morgan", radius: int = 2, nbits: int = 2048, verbose: int = 0,
+               seed: int = 42):
         """
         Cluster molecules. Input data should be molecules as DataFrame. Has parameters that can be changed. If none,
         will only include default params from initialization. Function will calculate fingerprints, similarity of every
@@ -297,9 +277,7 @@ class Cluster:
         else:
             return fig
 
-    def output_cluster_group(
-            self, data: pd.DataFrame = None, cluster: int = None, cluster_col: str = None
-    ):
+    def output_cluster_group(self, data: pd.DataFrame = None, cluster: int = None, cluster_col: str = None):
         """
         Output cluster group from dataframe. This is used to quickly check the molecules in a given cluster.
         :param data: pd.DataFrame

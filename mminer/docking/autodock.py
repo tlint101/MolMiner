@@ -10,13 +10,18 @@ import warnings
 import subprocess
 import pandas as pd
 from tqdm import tqdm
-
 from rdkit import Chem
 from rdkit.Chem import AllChem, PandasTools
-import vina
-from meeko import MoleculePreparation, PDBQTWriterLegacy, PDBQTMolecule, RDKitMolCreate
+from mminer._optional import require
 
 __all__ = ['Vina']
+
+
+def _meeko():
+    """Load meeko's PDBQT helpers. meeko lives behind the 'docking' extra."""
+    meeko = require("meeko", "docking", "Ligand preparation")
+    return (meeko.MoleculePreparation, meeko.PDBQTWriterLegacy,
+            meeko.PDBQTMolecule, meeko.RDKitMolCreate)
 
 
 class Vina:
@@ -115,6 +120,8 @@ class Vina:
 
         # Convert compound column into list for iteration
         compounds = df['ROMol'].tolist()
+        MoleculePreparation, PDBQTWriterLegacy, _, _ = _meeko()
+
         name_list = df[name_col].tolist()
         smi_list = df[smi_col].tolist()
 
@@ -203,6 +210,7 @@ class Vina:
         mol = Chem.AddHs(fixed_mol, addCoords=True)
 
         # Prepare the molecule using Meeko
+        MoleculePreparation, PDBQTWriterLegacy, _, _ = _meeko()
         preparator = MoleculePreparation()
         mol_prep = preparator.prepare(mol)
 
@@ -292,6 +300,9 @@ class Vina:
             seed = self.seed
         if centroid is None:
             centroid = self.centroid_coords
+
+        vina = require("vina", "vina", "Docking")
+        _, _, PDBQTMolecule, RDKitMolCreate = _meeko()
 
         # output mol_list, which contains rdkit mol, name, and score
         v = vina.Vina(sf_name=scoring, verbosity=verbosity, cpu=cpu, seed=seed)

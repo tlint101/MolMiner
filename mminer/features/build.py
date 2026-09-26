@@ -8,164 +8,12 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"  # to reduce error messages durin
 from typing import Optional, Union, Dict, Any
 from rdkit.Chem import BRICS
 import pandas as pd
-import safe as sf
 import datamol as dm
 from tqdm import tqdm
-import transformers
-
-from mminer.utils.rdkit_contrib.SA_Scorer import sascorer
-from mminer.utils.rdkit_contrib.NP_Scorer import npscorer
+from mminer._optional import require
+from mminer.features.scoring import Score
 
 __all__ = ["SAFEbuild", "BRICSBuild", 'Score']
-
-
-class Score:
-    """
-    Calculate SA Score https://greglandrum.github.io/rdkit-blog/posts/2023-12-01-using_sascore_and_npscore.html
-    """
-
-    def __init__(self, data: Union[pd.DataFrame, dm.Mol] = None):
-        if isinstance(data, pd.DataFrame):
-            self.data_df = data
-        elif isinstance(data, dm.Mol):
-            self.data = data
-        else:
-            self.data_df = None
-            self.data = None
-
-    @staticmethod
-    def sascore(mol: Union[str, dm.Mol] = None):
-        """
-        Calculate Synthetic Accessibility Score of a molecule.
-        :param mol: Union[str, dm.Mol]
-            Molecule smiles string or rdkit.Chem.Mol object.
-        :return:
-        """
-        # check if mol is string. If so, convert to ROMol.
-        if isinstance(mol, str):
-            mol = dm.to_mol(mol)
-
-        sa_score = sascorer.calculateScore(mol)
-        return sa_score
-
-    @staticmethod
-    def npscore(mol: Union[str, dm.Mol] = None):
-        """
-        Calculate Natural Product-likeness Score of a molecule.
-        :param mol: Union[str, dm.Mol]
-            Molecule smiles string or rdkit.Chem.Mol object.
-        :return:
-        """
-        # check if mol is string. If so, convert to ROMol.
-        if isinstance(mol, str):
-            mol = dm.to_mol(mol)
-
-        fscore = npscorer.readNPModel()
-        np_score = npscorer.scoreMol(mol, fscore)
-        return np_score
-
-    def ro5(self, mol: Union[str, dm.Mol] = None):
-        """
-        Calculate Rule of 5 Compliance of a molecule.
-        :param mol: Union[str, dm.Mol]
-            Molecule smiles string or rdkit.Chem.Mol object.
-        :return:
-        """
-        # check if mol is string. If so, convert to ROMol.
-        if isinstance(mol, str):
-            mol = dm.to_mol(mol)
-
-        # calculate molecule description
-        descriptors = dm.descriptors.compute_many_descriptors(mol)
-
-        # assess ro5 values
-        mw = descriptors.get('mw')
-        hbd = descriptors.get('n_lipinski_hbd')
-        hba = descriptors.get('n_lipinski_hba')
-        clogp = descriptors.get('clogp')
-
-        # check ro5 values
-        if hbd and clogp <= 5 and hba <= 10 and mw <= 500:
-            return 'True'
-        else:
-            return 'False'
-
-    def ro3(self, mol: Union[str, dm.Mol] = None):
-        """
-        Calculate Rule of 3 Compliance of a molecule for Lead-Like molecules.
-        :param mol: Union[str, dm.Mol]
-            Molecule smiles string or rdkit.Chem.Mol object.
-        :return:
-        """
-        # check if mol is string. If so, convert to ROMol.
-        if isinstance(mol, str):
-            mol = dm.to_mol(mol)
-
-        # calculate molecule description
-        descriptors = dm.descriptors.compute_many_descriptors(mol)
-
-        # assess ro5 values
-        mw = descriptors.get('mw')
-        hbd = descriptors.get('n_lipinski_hbd')
-        hba = descriptors.get('n_lipinski_hba')
-        clogp = descriptors.get('clogp')
-        rotatable_bonds = descriptors.get('n_rotatable_bonds')
-        qed = descriptors.get('qed')
-
-        self.descriptor_dict = {
-            'mw': mw,
-            'n_lipinski_hba': hba,
-            'n_lipinski_hbd': hbd,
-            'clogp': clogp,
-            'n_rotatable_bonds': rotatable_bonds,
-            'qed': qed
-        }
-
-        # check ro3 values
-        if hbd and hba and clogp and rotatable_bonds <= 3 and mw <= 300:
-            return 'True'
-        else:
-            return 'False'
-
-    # todo update with other score options
-    def prep_legend(self, data: pd.DataFrame = None, np_score: bool = False, qed: bool = False, clogp: bool = False,
-                    scores: bool = False):
-        """
-        Modify the pd.DataFrame of generated smiles. This will output a list to be used as a figure legend when drawing
-        molecules from the generated smiles (dm.to_imate()).
-        :param data: pd.DataFrame
-            pd.DataFrame of generated smiles. To ensure matching, run method AFTER processing the data.
-        :param np_score: bool
-            To determine to include the np_score score.
-        :param qed:
-        :param clogp:
-        :param scores: bool
-            To print all scores as figure legend.
-        :return:
-        """
-        if data is None:
-            data = self.data_df
-
-        # convert float to string
-        data['SA_score'] = data['SA_score'].astype(str)
-        # convert score to list
-        sa_score = data['SA_score'].tolist()
-        # add prefix to each item in list
-        sa_score = ['SA Score: ' + score for score in sa_score]
-
-        # option for np_score
-        if np_score is True:
-            data['NP_score'] = data['NP_score'].astype(str)
-            np_score = data['NP_score'].tolist()
-            np_score = ['NP Score: ' + score for score in np_score]
-
-            # Combine the list into a single list for the legend
-            legends = [f"{item1}\n\n\n{item2}" for item1, item2 in zip(sa_score, np_score)]
-
-            return legends
-
-        # if np_score is false
-        return sa_score
 
 
 class SAFEbuild(Score):
@@ -192,6 +40,8 @@ class SAFEbuild(Score):
             Optional device where to move the model.
         :return:
         """
+        sf = require("safe", "safe", "SAFEbuild")
+
         # default_model = sf.SAFEDesign.load_default(verbose=verbose)
         default_model = sf.SAFEDesign.load_default(verbose=verbose, model_dir=model_dir, device=device)
 
@@ -248,6 +98,9 @@ class SAFEbuild(Score):
         internally. This means that a custom model cannot be loaded. This will be troubleshooted and and the functions 
         for custom SAFE models will be wrapped in the future. 
         """
+        sf = require("safe", "safe", "SAFEbuild")
+        transformers = require("transformers", "safe", "SAFEbuild")
+
         global safe_model
         if model == 'default':
             safe_model = sf.SAFEDesign.load_default(verbose=True)
@@ -346,6 +199,9 @@ class SAFEbuild(Score):
         internally. This means that a custom model cannot be loaded. This will be troubleshooted and and the functions 
         for custom SAFE models will be wrapped in the future. 
         """
+        sf = require("safe", "safe", "SAFEbuild")
+        transformers = require("transformers", "safe", "SAFEbuild")
+
         global safe_model
         if model == 'default':
             safe_model = sf.SAFEDesign.load_default(verbose=True)
@@ -437,6 +293,9 @@ class SAFEbuild(Score):
         internally. This means that a custom model cannot be loaded. This will be troubleshooted and and the functions 
         for custom SAFE models will be wrapped in the future. 
         """
+        sf = require("safe", "safe", "SAFEbuild")
+        transformers = require("transformers", "safe", "SAFEbuild")
+
         global safe_model
         if model == 'default':
             safe_model = sf.SAFEDesign.load_default(verbose=True)

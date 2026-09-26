@@ -8,10 +8,8 @@ from matplotlib.colors import ListedColormap
 import seaborn as sns
 from typing import Union, Optional
 import re
-import os
+import sys
 
-os.environ["KERAS_BACKEND"] = "torch"
-import keras
 from sklearn.base import BaseEstimator
 from sklearn.metrics import (
     classification_report,
@@ -454,7 +452,7 @@ class ModelMetrics:
         if savepath: plt.savefig(savepath, dpi=300)
         plt.show()
 
-    def prediction_confidence(self, model: Union[list, BaseEstimator, keras.Model] = None,
+    def prediction_confidence(self, model: Union[list, BaseEstimator, "keras.Model"] = None,
                               test_val: pd.DataFrame = None, test_val_labels: pd.DataFrame = None, title: str = None,
                               color: tuple = ("skyblue", "salmon"), labels: tuple[str] = None, kde: bool = False,
                               legend_loc: str = None, figsize: tuple[float, float] = (10, 5), savepath: str = None):
@@ -471,7 +469,7 @@ class ModelMetrics:
         feat_inactive = test_val[input_labels == 0]
         feat_active = test_val[input_labels == 1]
 
-        if isinstance(model, BaseEstimator) or isinstance(model, keras.Model):
+        if isinstance(model, BaseEstimator) or _is_keras_model(model):
             # check model prediction type
             if hasattr(model, 'predict_proba'):
                 # if model uses proba
@@ -741,6 +739,16 @@ def ClassificationReport(y_true: np.ndarray, y_pred: np.ndarray, class_names: li
     ax.tick_params(axis='both', which='major', labelsize=10)
 
     return ax
+
+def _is_keras_model(model) -> bool:
+    """
+    Support function, check if object is Kears model without importing keras.
+
+    Keras lives behind the 'ml' extra, so it must not be imported just to run a
+    type check on a scikit-learn model.
+    """
+    keras = sys.modules.get("keras")
+    return keras is not None and isinstance(model, keras.Model)
 
 
 if __name__ == "__main__":

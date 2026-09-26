@@ -5,10 +5,10 @@ but can be used for molecule to molecule matching if needed
 
 import re
 import pandas as pd
-import safe as sf
 from rdkit import Chem
 from rdkit.Chem import DataStructs
-from mminer.features import Fingerprint
+from mminer._optional import require
+from mminer.features.fingerprint import Fingerprint
 from tqdm import tqdm
 from typing import Optional, Union
 
@@ -54,6 +54,7 @@ class Matching:
 
         sanitized_list = []
         if remove_dummies:
+            sf = require("safe", "safe", "SAFE dummy-atom removal")
             if verbose:
                 for frag in tqdm(frag_list, desc="Removing BRICS Numbering: "):
                     sanitized = sf.decode(frag, as_mol=False, remove_dummies=True)

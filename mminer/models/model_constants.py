@@ -25,6 +25,7 @@ warnings.filterwarnings(
     module="sklearn.linear_model.LogisticRegression",
 )
 
+#todo update params to fit sklearn ≥ 1.8
 lr_param_grid = {
     "max_iter": (800, 3000),
     "penalty": [None, "l1", "l2", "elasticnet"],
@@ -33,7 +34,6 @@ lr_param_grid = {
     "class_weight": [None, "balanced"],
     "intercept_scaling": (1, 10),
     "random_state": [random_seed],
-    "n_jobs": [-1]
 }
 
 rf_param_grid = {

@@ -16,7 +16,7 @@ from rdkit import Chem
 from rdkit.Chem import rdMolDescriptors, Draw, DataStructs
 from mminer.features.fingerprint import Fingerprint
 from mminer.utils.fingerprint_misc import smiles_to_fp
-from mminer.features.build import Score
+from mminer.features.scoring import Score
 from typing import Union
 
 __all__ = ["MolecularFragments", "Similarity", "reduce_dimension", "LibrarySpace", "FragmentSpace"]
