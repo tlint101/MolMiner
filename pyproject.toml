@@ -1,6 +1,6 @@
 [project]
 name = "MolMiner"
-version = "0.0.2"
+version = "0.0.3"
 readme = "README.md"
 description = "Tools for Cheminformatic Workflows."
 authors = [
@@ -8,32 +8,52 @@ authors = [
 ]
 license = "MIT"
 requires-python = ">=3.11, <3.15"
+
+# Base install: cheminformatics only -- fingerprints, BRICS/RECAP fragmentation, molecule drawing, chemical space,
+# clustering, plots.
 dependencies = [
     "numpy>=2.4.3",
     "pandas>=3.0.1",
-    "rdkit>=2025.9.6",
-    "scikit-learn == 1.6.1",
-    "seaborn>=0.13.2",
-    "torch>=2.10.0",
-    "keras>=3.13.2",
-    "notebook>=7.5.4",
     "scipy>=1.17.1",
-    "tqdm>=4.67.3",
-    "legendkit>=0.3.6",
-    "umap-learn>=0.5.11",
-    "safe-mol == 0.1.13", # check for updates
+    "rdkit>=2025.9.6",
+    "datamol>=0.12.5",
+    "scikit-learn == 1.6.1",
     "splito>=0.1.4",
-    "prolif>=2.1.0",
-    "xgboost >=3.2.0",
-    "mols2grid>=2.2.0",
-    "ipykernel>=7.2.0",
-    "transformers == 4.51.0", # update to > 5.0.0 when SAFE is updated
-    "meeko>=0.6.1",
-    "scikeras >=0.13.0,<0.14.0",
+    "umap-learn>=0.5.11",
+    "matplotlib>=3.7",
+    "seaborn>=0.13.2",
+    "legendkit>=0.3.6",
+    "tqdm>=4.67.3",
+    "requests>=2.31.0",
+    "fsspec>=2021.9",
+    "pillow>=10.0.1",
+    "ipython>=8.0.0",
 ]
 
+[project.urls]
+repository = "https://github.com/tlint101/MolMiner.git"
+
 [project.optional-dependencies]
+# sklearn/Keras modeling, splitting and Optuna hyperparameter search
+ml = [
+    "torch>=2.10.0",
+    "keras>=3.13.2",
+    "xgboost>=3.2.0",
+    "optuna>=4.2.1",
+]
+# dockign module, Autodock Vina will need to be installed using conda
+docking = [
+    "prolif>=2.1.0",
+    "meeko>=0.6.1",
+]
+# SAFE line notation and SAFE-based generative decoration
+safe = [
+    "safe-mol == 0.1.13", # check for updates
+    "transformers == 4.51.0", # update to > 5.0.0 when SAFE is updated
+]
+
 vina = ["vina>=1.2.7"]
+all = ["MolMiner[ml,docking,safe]"]
 
 [tool.poetry]
 packages = [{ include = "mminer" }]
@@ -46,5 +66,10 @@ build-backend = "poetry.core.masonry.api"
 dev = [
     "py50 >=1.1.0",
     "shap >=0.47.1",
-    "optuna>=4.2.1"
+    "marimo >= 0.23.15",
+    # Notebook/tutorial tooling: used by tutorials/ and program_superoxide/,
+    # never imported by mminer/ itself.
+    "notebook>=7.5.4",
+    "ipykernel>=7.2.0",
+    "mols2grid>=2.2.0",
 ]
