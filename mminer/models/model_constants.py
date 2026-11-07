@@ -25,23 +25,31 @@ warnings.filterwarnings(
     module="sklearn.linear_model.LogisticRegression",
 )
 
-#todo update params to fit sklearn ≥ 1.8
 lr_param_grid = {
     "max_iter": (800, 3000),
-    "penalty": [None, "l1", "l2", "elasticnet"],
-    "solver": ["liblinear", "newton-cg", "lbfgs", "newton-cholesky", "sag", "saga"],
+    "C": (0.01, 100.0, "log"),
+    # each solver supports different l1_ratio range, so solver must be conditional
+    # convert solve into dictionary
+    "solver": {
+        "saga": {"l1_ratio": (0.0, 1.0)},
+        "liblinear": {"l1_ratio": (0.0, 1.0, 1.0), "intercept_scaling": (1, 10)},  # L2 or L1 only
+        # L2 only, the default l1_ratio=0
+        "lbfgs": {},
+        "newton-cg": {},
+        "newton-cholesky": {},
+        "sag": {},
+    },
     "tol": (0.000001, 0.0001),
     "class_weight": [None, "balanced"],
-    "intercept_scaling": (1, 10),
     "random_state": [random_seed],
 }
 
 rf_param_grid = {
     "n_estimators": (10, 500),
-    "max_depth": (0, 30),
-    "min_samples_split": (0, 15),
-    "min_samples_leaf": (0, 10),
-    "max_features": [None, "auto", "sqrt", "log2"],
+    "max_depth": (1, 30),
+    "min_samples_split": (2, 15),
+    "min_samples_leaf": (1, 10),
+    "max_features": [None, "sqrt", "log2"],
     "bootstrap": [True, False],
     "criterion": ["gini", "entropy"],
     "random_state": [random_seed],
@@ -57,7 +65,6 @@ svc_param_grid = {
     "class_weight": [None, "balanced"],
     "tol": (0.00001, 0.01),
     "random_state": [random_seed],
-    "probability": [True]
 }
 
 knn_param_grid = {
