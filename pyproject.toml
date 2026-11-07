@@ -1,23 +1,26 @@
 [project]
 name = "MolMiner"
 version = "0.0.3"
-readme = "README.md"
 description = "Tools for Cheminformatic Workflows."
-authors = [
-    { name = "Tony Eight Lin", email = "tonyelin@tmu.edu.tw" }
-]
+authors = [{ name = "Tony Eight Lin", email = "tonyelin@tmu.edu.tw" }]
+requires-python = ">=3.11"
+readme = "README.md"
 license = "MIT"
-requires-python = ">=3.11, <3.15"
-
-# Base install: cheminformatics only -- fingerprints, BRICS/RECAP fragmentation, molecule drawing, chemical space,
-# clustering, plots.
+license-files = ["LICENSE"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
 dependencies = [
     "numpy>=2.4.3",
     "pandas>=3.0.1",
     "scipy>=1.17.1",
     "rdkit>=2025.9.6",
     "datamol>=0.12.5",
-    "scikit-learn == 1.6.1",
+    "scikit-learn>=1.8",
     "splito>=0.1.4",
     "umap-learn>=0.5.11",
     "matplotlib>=3.7",
@@ -30,45 +33,41 @@ dependencies = [
     "ipython>=8.0.0",
 ]
 
-[project.urls]
-repository = "https://github.com/tlint101/MolMiner.git"
-
 [project.optional-dependencies]
-# sklearn/Keras modeling, splitting and Optuna hyperparameter search
 ml = [
     "torch>=2.10.0",
     "keras>=3.13.2",
     "xgboost>=3.2.0",
     "optuna>=4.2.1",
 ]
-# dockign module, Autodock Vina will need to be installed using conda
 docking = [
     "prolif>=2.1.0",
     "meeko>=0.6.1",
 ]
-# SAFE line notation and SAFE-based generative decoration
 safe = [
-    "safe-mol == 0.1.13", # check for updates
-    "transformers == 4.51.0", # update to > 5.0.0 when SAFE is updated
+    "safe-mol == 0.1.13",
+    "transformers == 4.51.0",
 ]
-
 vina = ["vina>=1.2.7"]
 all = ["MolMiner[ml,docking,safe]"]
 
-[tool.poetry]
-packages = [{ include = "mminer" }]
+[project.urls]
+repository = "https://github.com/tlint101/MolMiner.git"
+
+[tool.uv.build-backend]
+module-name = ["mminer"]
+module-root = ""
+source-exclude = ["**/.DS_Store"]
 
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build>=0.13.7,<0.14.0"]
+build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
     "py50 >=1.1.0",
     "shap >=0.47.1",
     "marimo >= 0.23.15",
-    # Notebook/tutorial tooling: used by tutorials/ and program_superoxide/,
-    # never imported by mminer/ itself.
     "notebook>=7.5.4",
     "ipykernel>=7.2.0",
     "mols2grid>=2.2.0",
