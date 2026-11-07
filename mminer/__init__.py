@@ -10,7 +10,7 @@ import importlib
 warnings.filterwarnings("ignore", message=r".*inputs is part of.*")
 warnings.filterwarnings("ignore", module="umap", category=ImportWarning)
 
-_submodules = ["classification", "docking", "features", "hyperparams", "logger", "models", "utils", "visualizer"]
+_submodules = ["docking", "features", "hyperparams", "logger", "models", "utils", "visualizer"]
 
 
 def __getattr__(name):
