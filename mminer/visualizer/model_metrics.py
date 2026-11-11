@@ -227,8 +227,8 @@ class ModelMetrics:
         precision = precision_score(y_test, model_predict)
         mcc = matthews_corrcoef(y_test, model_predict)
 
-        # roc_auc_score requires true binary labels and probability score, not predicted class
-        y_predict_probability = model.predict_proba(X_test)[:, 1]
+        # roc_auc_score requires true binary labels and a positive-class score, not predicted class
+        y_predict_probability = _score_column(model, X_test)
         roc = roc_auc_score(y_test, y_predict_probability)
 
         # place results in array and generate DataFrame
@@ -335,12 +335,13 @@ class ModelMetrics:
             current_color = colors[i] if i < len(colors) else None
             base_label = labels[i] if i < len(labels) else f"Model {i + 1}"
 
-            if hasattr(mod, "predict_proba"):
-                # ROC Curve
-                RocCurveDisplay.from_estimator(mod, X_test, y_test, ax=ax, color=current_color, **kwargs)
+            if hasattr(mod, "predict_proba") or hasattr(mod, "decision_function"):
+                # "decision_function covers SVC
+                curve = {"color": current_color} if current_color is not None else None
+                RocCurveDisplay.from_estimator(mod, X_test, y_test, ax=ax, curve_kwargs=curve, **kwargs)
                 # calculate score
                 # get proba
-                y_prob = mod.predict_proba(X_test)[:, 1]
+                y_prob = _score_column(mod, X_test)
                 auc_score = roc_auc_score(y_test, y_prob)
                 # update label
                 ax.get_lines()[-1].set_label(f"{base_label} (AUC = {auc_score:.3f})")
@@ -420,12 +421,13 @@ class ModelMetrics:
             current_color = colors[i] if i < len(colors) else None
             base_label = labels[i] if i < len(labels) else f"Model {i + 1}"
 
-            if hasattr(mod, "predict_proba"):
-                # PrecisionRecall
-                PrecisionRecallDisplay.from_estimator(mod, X_test, y_test, ax=ax, color=current_color, **kwargs)
+            if hasattr(mod, "predict_proba") or hasattr(mod, "decision_function"):
+                # "decision_function covers SVC
+                curve = {"color": current_color} if current_color is not None else None
+                PrecisionRecallDisplay.from_estimator(mod, X_test, y_test, ax=ax, curve_kwargs=curve, **kwargs)
                 # calculate score
                 # get proba
-                y_prob = mod.predict_proba(X_test)[:, 1]
+                y_prob = _score_column(mod, X_test)
                 auprc_score = average_precision_score(y_test, y_prob)
                 # update label
                 ax.get_lines()[-1].set_label(f"{base_label} (AUPRC = {auprc_score:.3f})")
@@ -471,10 +473,10 @@ class ModelMetrics:
 
         if isinstance(model, BaseEstimator) or _is_keras_model(model):
             # check model prediction type
-            if hasattr(model, 'predict_proba'):
-                # if model uses proba
-                predict_inactive = model.predict_proba(feat_inactive)
-                predict_active = model.predict_proba(feat_active)
+            if hasattr(model, 'predict_proba') or hasattr(model, 'decision_function'):
+                # get positive-class score
+                predict_inactive = _score_column(model, feat_inactive)
+                predict_active = _score_column(model, feat_active)
             elif hasattr(model, 'predict'):
                 predict_inactive = model.predict(feat_inactive)
                 predict_active = model.predict(feat_active)
@@ -749,6 +751,21 @@ def _is_keras_model(model) -> bool:
     """
     keras = sys.modules.get("keras")
     return keras is not None and isinstance(model, keras.Model)
+
+
+"""Support functions"""
+def _score_column(model, X):
+    """
+    Support function to get a per-sample score for the positive class, used by ROC/PR plots and AUC. Uses predict_proba
+    when available; a plain SVC has no predict_proba, so it falls back to decision_function, which gives an identical
+    ranking (and thus identical ROC/PR/AUC).
+    :param model: Fitted classifier
+    :param X: Features to score
+    :return: 1-D array of scores, one per sample
+    """
+    if hasattr(model, "predict_proba"):
+        return model.predict_proba(X)[:, 1]
+    return model.decision_function(X)
 
 
 if __name__ == "__main__":
