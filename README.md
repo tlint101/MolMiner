@@ -6,7 +6,6 @@
 [![scikit-learn](https://img.shields.io/badge/scikit-1.5.1-%23F7931E.svg?style=flat&logo=scikit-learn)](https://scikit-learn.org/stable/)
 [![pytorch](https://img.shields.io/badge/PyTorch-2.1.0+-EE4C2C.svg?style=flat&logo=pytorch)](https://pytorch.org)
 [![Keras](https://img.shields.io/badge/Keras-3.0.0+-%23D00000.svg?style=flat&logo=keras&logoColor=D00000)](https://keras.io)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 MolMiner consolidates tools for small-molecule virtual screening. It includes custom scripts for data preprocessing,
 molecular docking (Autodock Vina), and ML/DL model development (Scikit-Learn and Keras). Using MolMiner is optional and
