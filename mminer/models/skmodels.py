@@ -203,8 +203,6 @@ class Lazy:
             Add option for verbosity. This will tell which model is being looped
         """
         global name
-        # Ignore convergence and runtime warnings
-        warnings.filterwarnings("ignore")
 
         # # to print a list of all classification models from sklearn
         # estimators = all_estimators(type_filter='classifier')
@@ -263,23 +261,29 @@ class Lazy:
         print(f"{len(model_dict)} Models to loop through I guess...")
         scoring_metrics = []
 
-        for name, model_class in tqdm(model_dict.items(), desc=f"Lazily going through models..."):
-            try:
-                if verbose is True:
-                    print(f"Looping through {name}")
+        # ignore warnings for the loop, but output possible deprecations for future sklearn updates
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            warnings.simplefilter("default", FutureWarning)
+            warnings.simplefilter("default", DeprecationWarning)
 
-                # instantiate the model
-                if "XGBClassifier" in name:
-                    model_instance = model_class(n_jobs=1, tree_method='exact')
-                else:
-                    model_instance = model_class()
+            for name, model_class in tqdm(model_dict.items(), desc=f"Lazily going through models..."):
+                try:
+                    if verbose is True:
+                        print(f"Looping through {name}")
 
-                scores = self._get_cv_scores(X_features=self.features, y_labels=self.labels, model=model_instance,
-                                             cv=self.cv)
-                scoring_metrics.append(scores)
-            except Exception as e:
-                print(f"Error while processing: {e}")
-                continue
+                    # instantiate the model
+                    if "XGBClassifier" in name:
+                        model_instance = model_class(n_jobs=1, tree_method='exact')
+                    else:
+                        model_instance = model_class()
+
+                    scores = self._get_cv_scores(X_features=self.features, y_labels=self.labels, model=model_instance,
+                                                 cv=self.cv)
+                    scoring_metrics.append(scores)
+                except Exception as e:
+                    print(f"Error while processing: {e}")
+                    continue
 
         # Generate output as DataFrame
         output_df = pd.DataFrame(scoring_metrics)
