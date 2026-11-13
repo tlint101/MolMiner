@@ -15,8 +15,7 @@ from typing import Optional, Union
 from sklearn.base import BaseEstimator
 from sklearn.model_selection import RepeatedKFold
 from sklearn.metrics import auc, precision_recall_curve, f1_score, recall_score, matthews_corrcoef, roc_auc_score
-from sklearn.model_selection import cross_val_score
-from mminer.models.skmodels import Models
+from mminer.models.skmodels import Models, Lazy
 from mminer.models.utils import Splitting_utils
 
 __all__ = ["Splitter", "CrossVal"]
@@ -390,6 +389,11 @@ class Splitter:
 
         validation_set = pd.concat([active, inactive], ignore_index=True)
 
+        # continuous data without a cutoff has no rows labeled 1 or 0
+        if validation_set.empty:
+            raise ValueError(f"No rows labeled 1 or 0 found in '{activity_col}'. If the data is continuous, give "
+                             f"the cutoff param!")
+
         # remove the validation_set from the larger dataset
         validation_list = validation_set.iloc[:, 0].tolist()
 
@@ -408,12 +412,13 @@ Obtain splits for Cross-Validation.
 
 
 class CrossVal(Splitter):
-    def __init__(self, data=None, model: str = None):
+    def __init__(self, data=None, model: str = None, task: str = "classification"):
         super().__init__(data)
         self._X_features = None
         self._y_labels = None
         self._y_predict = None
-        models = Models()
+        self.task = task
+        models = Models(task=task)
         if model:
             self._model = models.get_sk_model(model)
         else:
@@ -532,8 +537,10 @@ class CrossVal(Splitter):
                       cv: int = 5, hyperparams: Optional[dict] = None, prob_cutoff: float = 0.5,
                       epochs: Optional[int] = None, batch_size: Optional[int] = None, callbacks: Optional = None):
         """
-        Obtain Cross Validation Scores for a given model. This is a custom script created to fit the .csv due to my
-        molecular splits. Models will output the model, an array of CV scores and the CV mean.
+        Obtain Cross Validation Scores for a given model. This is a custom script created to fit the .csv due to
+        MolMiner's molecular splits. Models will output the model, an array of CV scores and the CV mean. The scoring
+        metrics depend on the task set in CrossVal(): classification or regression. Keras models are classification
+        only.
         :param features: pd.DataFrame
             Features for models extracted from a pd.DataFrame.
         :param labels: pd.DataFrame
@@ -558,14 +565,14 @@ class CrossVal(Splitter):
         """
 
         global model_name
-        skmodel = Models()
+        skmodel = Models(task=self.task)
 
         # get general or optimized model
-        if isinstance(model, str):
-            model = skmodel.get_sk_model(model)
-            model_name = model.__class__.__name__
-        elif isinstance(model, str) and isinstance(hyperparams, dict):
+        if isinstance(model, str) and isinstance(hyperparams, dict):
             model = skmodel.get_sk_model(model, hyperparams=hyperparams)
+            model_name = model.__class__.__name__
+        elif isinstance(model, str):
+            model = skmodel.get_sk_model(model)
             model_name = model.__class__.__name__
 
         # if already a compiled/built model
@@ -574,6 +581,14 @@ class CrossVal(Splitter):
         elif isinstance(model, keras.Model):
             model_name = "Keras"
             # print(model_name)  # for debugging
+            if self.task == "regression":
+                raise ValueError("Keras models are only supported for the classification task!")
+
+        # get sklearn/xgb scores. Scoring is shared with Lazy() so both tasks use the same metrics
+        if isinstance(model, BaseEstimator):
+            lazy = Lazy(features, labels, cv=cv, task=self.task)
+            results = lazy._get_cv_scores(X_features=features, y_labels=labels, model=model, cv=cv, raise_errors=True)
+            return results
 
         # To get columns containing all CV* header
         drop_cols = labels.loc[:, labels.columns.str.startswith('CV')].columns
@@ -586,12 +601,8 @@ class CrossVal(Splitter):
         # convert y_label to numpy array for ML model
         labels = y_label.squeeze()
 
-        # get sklearn/xgb scores
-        if isinstance(model, BaseEstimator):
-            results = self._sklearn_cv_score(cv_index, features, labels, model, model_name)
-            return results
         # get keras scores
-        elif isinstance(model, keras.Model):
+        if isinstance(model, keras.Model):
             results = self._keras_cv_score(cv_index, features, labels, model, model_name, callbacks, epochs, batch_size,
                                            prob_cutoff)
             return results
@@ -628,38 +639,6 @@ class CrossVal(Splitter):
         # Use AUC function to calculate the area under the curve of precision recall curve
         pr_auc_score = auc(recall, precision)
         return pr_auc_score
-
-    @staticmethod
-    def _sklearn_cv_score(cv_index, features, labels, model, model_name):
-        """support function to calculate sklearn/xgb cross validation scores"""
-
-        # List to hold cv_score
-        acc_list = []
-        precision_list = []
-        f1_list = []
-        recall_list = []
-        mcc_list = []
-        roc_auc_score_list = []
-
-        acc_score = cross_val_score(model, features, labels, cv=cv_index, scoring="accuracy", n_jobs=-1)
-        f1_test = cross_val_score(model, features, labels, cv=cv_index, scoring="f1", n_jobs=-1)
-        recall = cross_val_score(model, features, labels, cv=cv_index, scoring="recall", n_jobs=-1)
-        precision = cross_val_score(model, features, labels, cv=cv_index, scoring="precision", n_jobs=-1)
-        mcc = cross_val_score(model, features, labels, cv=cv_index, scoring="matthews_corrcoef", n_jobs=-1)
-        roc_auc = cross_val_score(model, features, labels, cv=cv_index, scoring="roc_auc", n_jobs=-1)
-
-        acc_list.append(acc_score)
-        f1_list.append(f1_test)
-        recall_list.append(recall)
-        precision_list.append(precision)
-        mcc_list.append(mcc)
-        roc_auc_score_list.append(roc_auc)
-
-        # Get score averages
-        results_dict = CrossVal.setup_results_dict(acc_list, f1_list, mcc_list, model_name, precision_list, recall_list,
-                                                   roc_auc_score_list)
-
-        return results_dict
 
     @staticmethod
     def _keras_cv_score(cv_index, features, labels, model, model_name, callbacks, epochs, batch_size, prob_cutoff):

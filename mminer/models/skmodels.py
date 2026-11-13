@@ -367,15 +367,18 @@ class Lazy:
 
         return output_df
 
-    def _get_cv_scores(self, X_features, y_labels, model, cv=5):
+    def _get_cv_scores(self, X_features, y_labels, model, cv=5, raise_errors=False):
         """
         Internal function for lazy classification. Obtain Cross Validation Scores for a given model. This is a custom
-        script created to fit the .csv due to my molecular splits. Models will output the model, an array of CV scores and the CV mean.
-
+        script created to fit the .csv due to my molecular splits. Models will output the model, an array of CV scores
+        and the CV mean.
         :param X_features:
         :param y_labels:
         :param model:
         :param cv:
+        :param raise_errors: bool
+            If a model fails on all CV folds, raise the error instead of returning NaN scores. Used by
+            CrossVal.get_cv_scores().
         :return:
         """
 
@@ -388,7 +391,7 @@ class Lazy:
         cv_index = self._get_cv_split_skmodels(y_label=y_labels, cv=cv)
 
         # To get columns containing all CV* header
-        drop_cols = y_labels.filter(regex="CV*").columns
+        drop_cols = y_labels.loc[:, y_labels.columns.str.startswith('CV')].columns
         y_label = y_labels.drop(columns=drop_cols)
         X_features = X_features.drop(columns=drop_cols)
 
@@ -408,6 +411,8 @@ class Lazy:
         try:
             cv_scores = cross_validate(model, X_features, y_labels, cv=cv_index, scoring=metrics, n_jobs=self.n_jobs)
         except Exception as e:
+            if raise_errors:
+                raise
             cv_scores = None
 
         for metric_name, scoring_param in metrics.items():
