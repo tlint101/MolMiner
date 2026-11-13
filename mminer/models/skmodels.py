@@ -19,10 +19,11 @@ from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.linear_model import LogisticRegression, Ridge, ElasticNet
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.svm import SVC, SVR
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import cross_validate
 
 __all__ = ["Models", "Lazy"]
 
+# default classification models
 MODEL = namedtuple("MODEL", ["short_name", "long_name", "model_class"])
 lr = MODEL("lr", "logistic regression", LogisticRegression)
 rf = MODEL("rf", "random forest", RandomForestClassifier)
@@ -33,7 +34,7 @@ xgb = MODEL("xgb", "xgboost", XGBClassifier)
 # List of model aliases and corresponding model classes
 MODEL_LIST = [lr, rf, knn, svc, xgb]
 
-# List of regression model aliases and corresponding model classes
+# default regression models
 REG_MODEL_LIST = [
     MODEL("ridge", "ridge regression", Ridge),
     MODEL("enet", "elastic net", ElasticNet),
@@ -43,10 +44,27 @@ REG_MODEL_LIST = [
     MODEL("xgb", "xgboost", XGBRegressor),
 ]
 
-# task -> (model alias list, sklearn all_estimators type_filter)
+# set model tasks
 TASKS = {
     "classification": (MODEL_LIST, "classifier"),
     "regression": (REG_MODEL_LIST, "regressor"),
+}
+
+# task -> scoring metrics for Lazy. Column name: sklearn scoring string
+METRICS = {
+    "classification": {
+        "Accuracy": "accuracy",
+        "F1 Score": "f1",
+        "Recall": "recall",
+        "Precision": "precision",
+        "MCC": "matthews_corrcoef",
+        "ROC AUC": "roc_auc"
+    },
+    "regression": {
+        "R2": "r2",
+        "RMSE": "neg_root_mean_squared_error",
+        "MAE": "neg_mean_absolute_error"
+    },
 }
 
 
@@ -209,15 +227,33 @@ class Models:
 
 
 class Lazy:
-    def __init__(self, features, labels, cv=10):
+    def __init__(self, features, labels, cv=10, task: str = "classification", n_jobs: int = -1):
+        """
+        :param features: pd.DataFrame
+            Features with the CV columns from CrossVal.extract_cv().
+        :param labels: pd.DataFrame
+            Labels with the CV columns from CrossVal.extract_cv().
+        :param cv: int
+            The number of CV groups in table.
+        :param task: str
+            "classification" or "regression". Sets which sklearn models and scoring metrics are used.
+        :param n_jobs: int
+            Number of CPU cores used to run the CV folds in parallel. Defaults to -1 which is all cores. Set to 1
+            to run one fold at a time.
+        """
+        if task not in TASKS:
+            raise ValueError(f"Task '{task}' is not supported. Choose from: {list(TASKS)}")
+
         self.features = features
         self.labels = labels
         self.cv = cv
+        self.task = task
+        self.n_jobs = n_jobs
 
     def get_lazy_scores(self, model_num=0, verbose=False):
         """
-        Function to obtain lazy scores for all classification models in SKlearn. This will run through 32 different
-        Classification models.
+        Function to obtain lazy scores for all classification or regression models in SKlearn, depending on the task
+        set in Lazy(). This will run through 32 different Classification models or 43 different Regression models.
         :param model_num: str
             Set the number of models to test. Defaults to 0 which is all models.
         :param verbose: bool
@@ -232,8 +268,8 @@ class Lazy:
         #     print(f'{i}. {class_.__name__}')
         #     i += 1
 
-        # Place all classifiers into a dictionary and model names in list
-        estimators = all_estimators(type_filter="classifier")
+        # put classifiers/regressors into a dict and model names in a list
+        estimators = all_estimators(type_filter=TASKS[self.task][1])
         model_dict = {name: class_ for name, class_ in estimators}
 
         # if want to test a smaller set, input model_num
@@ -265,6 +301,24 @@ class Lazy:
             "QuadraticDiscriminantAnalysis"
         ]
 
+        # regression models that need multiple outputs, other estimators as input or do not fit our data.
+        if self.task == "regression":
+            models_to_remove = [
+                "CCA",
+                "IsotonicRegression",
+                "MultiOutputRegressor",
+                "MultiTaskElasticNet",
+                "MultiTaskElasticNetCV",
+                "MultiTaskLasso",
+                "MultiTaskLassoCV",
+                "PLSCanonical",
+                "RadiusNeighborsRegressor",
+                "RegressorChain",
+                "StackingRegressor",
+                "TheilSenRegressor",  # does not finish in a reasonable time on fingerprints
+                "VotingRegressor"
+            ]
+
         # # for troubleshooting. Only lazily train a few models for quicker testing.
         # from itertools import islice
         # model_dict = dict(islice(model_dict.items(), 2))
@@ -275,7 +329,9 @@ class Lazy:
                 del model_dict[key]
 
         # add xgboost model
-        if "XGBClassfier" not in model_dict:
+        if self.task == "regression":
+            model_dict['XGBRegressor'] = XGBRegressor
+        else:
             model_dict['XGBClassifier'] = XGBClassifier
 
         # Loop through models
@@ -294,7 +350,7 @@ class Lazy:
                         print(f"Looping through {name}")
 
                     # instantiate the model
-                    if "XGBClassifier" in name:
+                    if "XGB" in name:
                         model_instance = model_class(n_jobs=1, tree_method='exact')
                     else:
                         model_instance = model_class()
@@ -337,29 +393,32 @@ class Lazy:
         X_features = X_features.drop(columns=drop_cols)
 
         # convert y_label to numpy array for ML model
-        y_labels = np.ravel(y_label).astype(int)
+        y_labels = np.ravel(y_label)
+        # only classification labels are integers. Regression values stay as is.
+        if self.task == "classification":
+            y_labels = y_labels.astype(int)
         X_features = X_features.values.astype(np.float32)
 
         # dict to hold results
         results_dict = {"Model": model.__class__.__name__}
 
-        metrics = {
-            "Accuracy": "accuracy",
-            "F1 Score": "f1",
-            "Recall": "recall",
-            "Precision": "precision",
-            "MCC": "matthews_corrcoef",
-            "ROC AUC": "roc_auc"
-        }
+        metrics = METRICS[self.task]
+
+        # score all metrics from a single fit per CV fold
+        try:
+            cv_scores = cross_validate(model, X_features, y_labels, cv=cv_index, scoring=metrics, n_jobs=self.n_jobs)
+        except Exception as e:
+            cv_scores = None
 
         for metric_name, scoring_param in metrics.items():
-            try:
-                scores = cross_val_score(model, X_features, y_labels, cv=cv_index, scoring=scoring_param)
-                results_dict[metric_name] = scores
-                results_dict[f"{metric_name}_avg"] = np.mean(scores)
-            except Exception as e:
+            if cv_scores is None:
                 results_dict[metric_name] = np.nan
-                results_dict[f"{metric_name}_avg"] = np.nan
+                continue
+            scores = cv_scores[f"test_{metric_name}"]
+            # sklearn gives error metrics (RMSE, MAE) as negative numbers, flip back to positive
+            if scoring_param.startswith("neg_"):
+                scores = -scores
+            results_dict[metric_name] = scores
 
         # reorder cols with avg cols at the end
         for metric_name in metrics.keys():
@@ -369,8 +428,7 @@ class Lazy:
                 results_dict[f"{metric_name}_avg"] = np.nan
 
         # reorder cols
-        column_template = ["Model", "Accuracy", "F1 Score", "Recall", "Precision", "MCC", "ROC AUC", "Accuracy_avg",
-                           "F1 Score_avg", "Recall_avg", "Precision_avg", "MCC_avg", "ROC AUC_avg"]
+        column_template = ["Model"] + list(metrics) + [f"{metric_name}_avg" for metric_name in metrics]
         results_dict = {key: results_dict[key] for key in column_template}
 
         return results_dict
