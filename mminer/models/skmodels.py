@@ -12,13 +12,13 @@ import pickle
 import ast
 import os
 from typing import Union
-from xgboost import XGBClassifier
+from xgboost import XGBClassifier, XGBRegressor
 from sklearn.base import BaseEstimator
 from sklearn.utils import all_estimators
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.svm import SVC
+from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
+from sklearn.linear_model import LogisticRegression, Ridge, ElasticNet
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.svm import SVC, SVR
 from sklearn.model_selection import cross_val_score
 
 __all__ = ["Models", "Lazy"]
@@ -33,6 +33,22 @@ xgb = MODEL("xgb", "xgboost", XGBClassifier)
 # List of model aliases and corresponding model classes
 MODEL_LIST = [lr, rf, knn, svc, xgb]
 
+# List of regression model aliases and corresponding model classes
+REG_MODEL_LIST = [
+    MODEL("ridge", "ridge regression", Ridge),
+    MODEL("enet", "elastic net", ElasticNet),
+    MODEL("rf", "random forest", RandomForestRegressor),
+    MODEL("knn", "k-nearest neighbors", KNeighborsRegressor),
+    MODEL("svr", "support vector", SVR),
+    MODEL("xgb", "xgboost", XGBRegressor),
+]
+
+# task -> (model alias list, sklearn all_estimators type_filter)
+TASKS = {
+    "classification": (MODEL_LIST, "classifier"),
+    "regression": (REG_MODEL_LIST, "regressor"),
+}
+
 
 class Models:
     def __init__(
@@ -40,10 +56,15 @@ class Models:
             features: pd.DataFrame = None,
             labels: pd.DataFrame = None,
             model: str = None,
+            task: str = "classification",
     ):
+        if task not in TASKS:
+            raise ValueError(f"Task '{task}' is not supported. Choose from: {list(TASKS)}")
+
         self.features = features
         self.labels = labels
         self.model = model
+        self.task = task
 
     def get_sk_model(
             self,
@@ -84,14 +105,14 @@ class Models:
             else:
                 # return default model
                 return pulled_model()
-        # if classifier is other than found in MODEL_LIST
+        # if model is other than found in the task's model list
         else:
-            classifiers = {name: estimator for name, estimator in all_estimators(type_filter='classifier')}
-            if model not in classifiers:
+            estimators = {name: estimator for name, estimator in all_estimators(type_filter=TASKS[self.task][1])}
+            if model not in estimators:
                 raise ValueError(
-                    f"Model '{model}' is not supported. Choose from: \n {list(classifiers.keys())}")
+                    f"Model '{model}' is not supported. Choose from: \n {list(estimators.keys())}")
 
-            return classifiers[model](**kwargs)
+            return estimators[model](**kwargs)
 
     def _hyperparams(self, filepath=None):
         """Support function for params for get_sk_model()"""
@@ -109,8 +130,8 @@ class Models:
 
     def _pull_from_namedtumple(self, model_query):
         """support function to get model from the namedtuple"""
-        # Loop through the list of classifiers and match with the model
-        for classifier in MODEL_LIST:
+        # Loop through the task's list of models and match with the model
+        for classifier in TASKS[self.task][0]:
             try:
                 if model_query == classifier.short_name or model_query == classifier.long_name or model_query == classifier.model_class:
                     return classifier.model_class
@@ -180,7 +201,7 @@ class Models:
             with open(filepath, "rb") as f:
                 model = pickle.load(f)
         elif ext in [".json", ".ubj", ".model"]:
-            model = XGBClassifier()
+            model = XGBRegressor() if self.task == "regression" else XGBClassifier()
             model.load_model(filepath)
         else:
             raise ValueError(f"Model '{filepath}' is not found!")
