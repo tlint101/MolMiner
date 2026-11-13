@@ -602,6 +602,83 @@ class ModelMetrics:
         if savepath: plt.savefig(savepath, dpi=300)
         plt.show()
 
+    def plot_residuals(self, model: Union[BaseEstimator, object] = None, X_test=None, y_test=None,
+                       histogram: bool = False, title: str = None, color: tuple = (None, None),
+                       legend_loc: str = "best", figsize: tuple[float, float] = (8, 5), fontsize: int = 12,
+                       titlesize: int = 15, grid: bool = False, savepath: str = None):
+        """
+        Plot the residuals (actual - predicted) against the predicted values for a regression model. Points above 0
+        are under-predicted and points below 0 are over-predicted. Both the train and test sets are shown with their
+        R2 scores in the legend. If ModelMetrics() has no train set, only the test set is shown.
+        :param model: [BaseEstimator, object]
+            A fitted sklearn or XGBoost regression model.
+        :param X_test:
+            Dataset containing features to predict
+        :param y_test:
+            Dataset containing the actual values
+        :param histogram: bool
+            Add a histogram of the residuals to the right side of the plot. Defaults to False.
+        :param title: str
+            Title of the plot. If None is given, the default title will be used.
+        :param color: tuple
+            Set color of the points and histogram as (train color, test color).
+        :param legend_loc: str
+            Set the location of the figure legend.
+        :param figsize: tuple
+            Set figure size.
+        :param fontsize: int
+            Font size for axis
+        :param titlesize: int
+            Font size for title
+        :param grid: bool
+            Set grid.
+        :param savepath: str
+            Filepath to save figure.
+        :return:
+        """
+        if X_test is None: X_test = self.X_test
+        if y_test is None: y_test = self.y_test
+
+        # datasets to plot as (label, features, actual values, color). Train set is only added if available.
+        datasets = [("Test", X_test, y_test, color[1])]
+        if self.X_train is not None and self.y_train is not None:
+            datasets.insert(0, ("Train", self.X_train, self.y_train, color[0]))
+
+        # add a narrow axis on the right side for the histogram
+        if histogram:
+            fig, (ax, hist_ax) = plt.subplots(1, 2, sharey=True, figsize=figsize, gridspec_kw={"width_ratios": [4, 1]})
+        else:
+            fig, ax = plt.subplots(figsize=figsize)
+
+        for name, X, y, current_color in datasets:
+            # generate predictions and residuals
+            y_true = np.ravel(y)
+            y_pred = np.ravel(model.predict(X))
+            residuals = y_true - y_pred
+            r2 = r2_score(y_true, y_pred)
+
+            points = ax.scatter(y_pred, residuals, color=current_color, alpha=0.5, label=f"{name} $R^2$ = {r2:.3f}")
+            if histogram:
+                # match the histogram color to the points
+                hist_ax.hist(residuals, bins=50, orientation="horizontal", color=points.get_facecolor()[0])
+
+        # horizontal line for a perfect prediction
+        ax.axhline(0, color='gainsboro', linestyle='--')
+        if histogram:
+            hist_ax.axhline(0, color='gainsboro', linestyle='--')
+            hist_ax.set_xlabel("Count", fontsize=fontsize)
+            hist_ax.grid(grid)
+
+        if title is None: title = "Residual Plot"
+        ax.grid(grid)
+        ax.set_xlabel("Predicted", fontsize=fontsize)
+        ax.set_ylabel("Residual (Actual - Predicted)", fontsize=fontsize)
+        ax.set_title(title, fontsize=titlesize)
+        ax.legend(loc=legend_loc)
+        plt.tight_layout()
+        if savepath: plt.savefig(savepath, dpi=300)
+        plt.show()
+
 
 def plot_enrichment(data: pd.DataFrame = None, rank_col: Union[str, list] = None, true_col: str = None,
                     title: str = None, label: Union[str, list] = None, color: Union[str, list] = None,
