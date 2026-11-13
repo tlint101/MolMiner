@@ -24,7 +24,10 @@ from sklearn.metrics import (
     roc_curve,
     PrecisionRecallDisplay,
     average_precision_score,
-    precision_recall_curve
+    precision_recall_curve,
+    r2_score,
+    root_mean_squared_error,
+    mean_absolute_error
 )
 from sklearn.model_selection import learning_curve, LearningCurveDisplay
 
@@ -506,6 +509,98 @@ class ModelMetrics:
 
         plt.close(figure)  # close figure
         return figure
+
+    def regression_report(self, model, fit_model: bool = False):
+        """
+        Regression report that shows the R2, RMSE and MAE scores for the model on the test set.
+
+        :param model:
+            A SKlearn or XGBoost regression model.
+        :param fit_model: bool
+             If model is already fit, then the report will be generated from fit data. Otherwise, model will
+             be fit using the parmas given on ModelMetrics() instance.
+        :return: pd.DataFrame
+        """
+
+        # fit model if needed
+        if not fit_model:
+            model.fit(self.X_train, self.y_train)
+
+        # generate predictions and score
+        y_true = np.ravel(self.y_test)
+        y_pred = np.ravel(model.predict(self.X_test))
+        r2 = r2_score(y_true, y_pred)
+        rmse = root_mean_squared_error(y_true, y_pred)
+        mae = mean_absolute_error(y_true, y_pred)
+
+        # place results in array and generate DataFrame
+        model_name = model.__class__.__name__
+        scores = [[model_name, r2, rmse, mae]]
+        col_headers = ["Model", "R2", "RMSE", "MAE"]
+        df = pd.DataFrame(scores, columns=col_headers)
+
+        return df
+
+    def plot_regression(self, model: Union[BaseEstimator, object] = None, X_test=None, y_test=None, title: str = None,
+                        color: str = None, legend_loc: str = "upper left", figsize: tuple[float, float] = (6, 6),
+                        fontsize: int = 12, titlesize: int = 15, grid: bool = False, savepath: str = None):
+        """
+        Plot predicted vs. actual values for a regression model. The R2, RMSE and MAE scores are shown in the legend.
+        :param model: [BaseEstimator, object]
+            A fitted sklearn or XGBoost regression model.
+        :param X_test:
+            Dataset containing features to predict
+        :param y_test:
+            Dataset containing the actual values
+        :param title: str
+            Title of the plot. If None is given, the default title will be used.
+        :param color: str
+            Set color of the points.
+        :param legend_loc: str
+            Set the location of the figure legend.
+        :param figsize: tuple
+            Set figure size.
+        :param fontsize: int
+            Font size for axis
+        :param titlesize: int
+            Font size for title
+        :param grid: bool
+            Set grid.
+        :param savepath: str
+            Filepath to save figure.
+        :return:
+        """
+        if X_test is None: X_test = self.X_test
+        if y_test is None: y_test = self.y_test
+
+        # generate predictions and score
+        y_true = np.ravel(y_test)
+        y_pred = np.ravel(model.predict(X_test))
+        r2 = r2_score(y_true, y_pred)
+        rmse = root_mean_squared_error(y_true, y_pred)
+        mae = mean_absolute_error(y_true, y_pred)
+
+        plt.figure(figsize=figsize)
+        ax = plt.gca()
+        ax.scatter(y_true, y_pred, color=color, alpha=0.5)
+
+        # diagonal line for a perfect prediction
+        limits = [min(y_true.min(), y_pred.min()), max(y_true.max(), y_pred.max())]
+        ax.plot(limits, limits, color='gainsboro', linestyle='--')
+
+        # scores only in the legend, one per line with no markers
+        for score in [f"$R^2$ = {r2:.3f}", f"RMSE = {rmse:.3f}", f"MAE = {mae:.3f}"]:
+            ax.plot([], [], ' ', label=score)
+
+        if title is None: title = "Predicted vs. Actual"
+        plt.grid(grid)
+        plt.xlabel("Actual", fontsize=fontsize)
+        plt.ylabel("Predicted", fontsize=fontsize)
+        plt.title(title, fontsize=titlesize)
+        ax.legend(loc=legend_loc, handlelength=0, handletextpad=0)
+        plt.tight_layout()
+        if savepath: plt.savefig(savepath, dpi=300)
+        plt.show()
 
 
 def plot_enrichment(data: pd.DataFrame = None, rank_col: Union[str, list] = None, true_col: str = None,
