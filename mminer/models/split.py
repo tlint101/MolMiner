@@ -15,6 +15,7 @@ from typing import Optional, Union
 from sklearn.base import BaseEstimator
 from sklearn.model_selection import RepeatedKFold
 from sklearn.metrics import auc, precision_recall_curve, f1_score, recall_score, matthews_corrcoef, roc_auc_score
+from sklearn.metrics import r2_score, root_mean_squared_error, mean_absolute_error
 from mminer.models.skmodels import Models, Lazy
 from mminer.models.utils import Splitting_utils
 
@@ -539,8 +540,8 @@ class CrossVal(Splitter):
         """
         Obtain Cross Validation Scores for a given model. This is a custom script created to fit the .csv due to
         MolMiner's molecular splits. Models will output the model, an array of CV scores and the CV mean. The scoring
-        metrics depend on the task set in CrossVal(): classification or regression. Keras models are classification
-        only.
+        metrics depend on the task set in CrossVal(): classification or regression. Keras models also output the loss
+        for each fold.
         :param features: pd.DataFrame
             Features for models extracted from a pd.DataFrame.
         :param labels: pd.DataFrame
@@ -581,8 +582,6 @@ class CrossVal(Splitter):
         elif isinstance(model, keras.Model):
             model_name = "Keras"
             # print(model_name)  # for debugging
-            if self.task == "regression":
-                raise ValueError("Keras models are only supported for the classification task!")
 
         # get sklearn/xgb scores. Scoring is shared with Lazy() so both tasks use the same metrics
         if isinstance(model, BaseEstimator):
@@ -604,7 +603,7 @@ class CrossVal(Splitter):
         # get keras scores
         if isinstance(model, keras.Model):
             results = self._keras_cv_score(cv_index, features, labels, model, model_name, callbacks, epochs, batch_size,
-                                           prob_cutoff)
+                                           prob_cutoff, task=self.task)
             return results
 
     @staticmethod
@@ -641,7 +640,8 @@ class CrossVal(Splitter):
         return pr_auc_score
 
     @staticmethod
-    def _keras_cv_score(cv_index, features, labels, model, model_name, callbacks, epochs, batch_size, prob_cutoff):
+    def _keras_cv_score(cv_index, features, labels, model, model_name, callbacks, epochs, batch_size, prob_cutoff,
+                        task="classification"):
         """support function to calculate Keras CV scores"""
         # set a callback to stop training after 5 epochs to prevent overfitting.
         if callbacks is None:
@@ -654,11 +654,17 @@ class CrossVal(Splitter):
         optimizer_config = model.optimizer.get_config()
         optimizer_class = model.optimizer.__class__
 
-        # todo add param for this
-        loss_fn = "binary_crossentropy"
-        metrics = ["accuracy", keras.metrics.Precision(name="precision")]
+        if task == "regression":
+            loss_fn = "mse"
+            metrics = ["mae"]
+        else:
+            loss_fn = "binary_crossentropy"
+            metrics = ["accuracy", keras.metrics.Precision(name="precision")]
 
         # List to hold cv_score
+        r2_list = []
+        rmse_list = []
+        mae_list = []
         loss_list = []
         acc_list = []
         precision_list = []
@@ -693,6 +699,17 @@ class CrossVal(Splitter):
 
             # Evaluate the model
             predict_prob = model.predict(x_test)
+
+            # regression scores use the predicted values directly
+            if task == "regression":
+                predict = predict_prob.ravel()
+                loss_list.append(model.evaluate(x_test, y_test, verbose=True)[0])
+                r2_list.append(r2_score(y_test, predict))
+                rmse_list.append(root_mean_squared_error(y_test, predict))
+                mae_list.append(mean_absolute_error(y_test, predict))
+                fold_no += 1
+                continue
+
             predict = (predict_prob > prob_cutoff).astype(int)  # set cutoff for 1 or 0 label with keras
 
             loss, accuracy, precision = model.evaluate(x_test, y_test, verbose=True)
@@ -711,6 +728,13 @@ class CrossVal(Splitter):
             roc_auc_score_list.append(roc_auc)
 
             fold_no += 1
+
+        # regression results follow the same layout as the sklearn regression scores with the loss added
+        if task == "regression":
+            results_dict = {"Model": model_name, "Loss": loss_list, "R2": r2_list, "RMSE": rmse_list, "MAE": mae_list,
+                            "Loss_avg": np.mean(loss_list), "R2_avg": np.mean(r2_list), "RMSE_avg": np.mean(rmse_list),
+                            "MAE_avg": np.mean(mae_list)}
+            return results_dict
 
         # get score averages
         results_dict = CrossVal.setup_results_dict(acc_list, f1_list, mcc_list, model_name, precision_list, recall_list,

@@ -93,7 +93,19 @@ def set_seed(seed=42):
 
 
 class Keras:
-    def __init__(self, model: Optional = None, seed: Optional[int] = None):
+    def __init__(self, model: Optional = None, seed: Optional[int] = None, task: str = "classification"):
+        """
+        :param model: A keras model. If None, an empty Sequential model is created.
+        :param seed: int
+            Seed for reproducibility. Defaults to 42.
+        :param task: str
+            Either "classification" or "regression". Used by basic_mlp() to set the output layer, loss and metrics.
+        """
+        tasks = ["classification", "regression"]
+        if task not in tasks:
+            raise ValueError(f"Task '{task}' is not supported. Choose from: {tasks}")
+        self.task = task
+
         if model is None:
             self.model = Sequential()
         else:
@@ -245,7 +257,9 @@ class Keras:
             summary: bool = False,
     ):
         """
-        This function is for basic MLP classification model for small-molecules. Further reading on determining the
+        This function is for basic MLP model for small-molecules. The task set in Keras() decides the output layer,
+        loss and metrics: classification uses a sigmoid output with binary_crossentropy and accuracy, regression uses a
+        linear output with mse, mae and rmse. Further reading on determining the
         number of layers to use: https://medium.com/geekculture/introduction-to-neural-network-2f8b8221fbd3. Information
         on the keras.fit() method can be found here: https://keras.io/api/models/model_training_apis/
 
@@ -271,6 +285,16 @@ class Keras:
         # Get shape from features
         shape = features.shape[1]
 
+        # regression predicts a continuous value, so the output layer has no activation
+        if self.task == "regression":
+            output_layer = Dense(units=1)
+            loss = "mse"
+            metrics = ["mae", keras.metrics.RootMeanSquaredError(name="rmse")]
+        else:
+            output_layer = Dense(units=1, activation="sigmoid")
+            loss = "binary_crossentropy"
+            metrics = ["accuracy"]
+
         # Build model
         self.model = keras.Sequential(
             [
@@ -279,7 +303,7 @@ class Keras:
                 Dropout(rate=0.5),
                 Dense(units=32, activation="relu", kernel_regularizer=L2(0.01)),
                 Dropout(rate=0.5),
-                Dense(units=1, activation="sigmoid"),
+                output_layer,
             ]
         )
 
@@ -292,9 +316,9 @@ class Keras:
 
         # Compile model
         basic_model.compile(
-            loss="binary_crossentropy",
+            loss=loss,
             optimizer="adam",
-            metrics=["accuracy"],
+            metrics=metrics,
         )
         self.is_compiled = True
 
