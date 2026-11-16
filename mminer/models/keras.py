@@ -410,7 +410,7 @@ class Keras:
 
         return fig
 
-    def plot_histroy(
+    def plot_history(
             self,
             model_history,
             metrics: Union[str, list] = ["accuracy", "loss"],
