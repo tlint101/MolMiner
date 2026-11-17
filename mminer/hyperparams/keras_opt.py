@@ -7,6 +7,7 @@ import numpy as np
 import optuna
 from optuna.samplers import TPESampler
 from typing import Optional, Union, Iterable, Callable
+from sklearn.metrics import r2_score
 from mminer.models.split import CrossVal
 from mminer.hyperparams.optimization import Optimization
 
@@ -22,7 +23,7 @@ from keras.src.regularizers import L1, L2, L1L2
 from keras._tf_keras.keras.models import Sequential
 from keras._tf_keras.keras.layers import Dense, Dropout, Input
 from keras._tf_keras.keras.optimizers import *
-from keras._tf_keras.keras.metrics import Precision
+from keras._tf_keras.keras.metrics import Precision, RootMeanSquaredError
 from keras._tf_keras.keras.callbacks import EarlyStopping
 
 # For XGBoost reference
@@ -50,7 +51,8 @@ class Keras_opt(Optimization):
                  model: Optional[Union[keras.Model]] = None,
                  cv: Optional[int] = None,
                  precision_weight: float = 0,
-                 loss_weight: float = 1.0
+                 loss_weight: float = 1.0,
+                 task: str = "classification"
                  ):
         """
         Initialize KerasGA. These inputs are optional, however, giving the parameters when initializing the class
@@ -84,7 +86,17 @@ class Keras_opt(Optimization):
             Set the weight for loss score. The value should be between 0 and 1. This will adjust the weight for the
             model score as (w_acc * val_acc) + (w_prec * val_prec) + (w_loss * n_loss), with the w_acc and w_prec
             adjusted from the loss_weight.
+        :param task: str
+            Set the task as 'classification' or 'regression'. Defaults to 'classification'. The task sets the output
+            layer, loss and metrics of the model: classification uses a sigmoid output with binary_crossentropy,
+            regression uses a linear output with mse. Regression models are scored by R2 only, so precision_weight and
+            loss_weight are not used and the direction in opt_model() should stay as 'maximize'.
         """
+        tasks = ["classification", "regression"]
+        if task not in tasks:
+            raise ValueError(f"Task '{task}' is not supported. Choose from: {tasks}")
+        self.task = task
+
         super().__init__(x_train, x_test, y_train, y_test, features, labels, model, cv)
         self.feat_cols = feat_cols
         self.activity_cols = activity_cols
@@ -117,7 +129,9 @@ class Keras_opt(Optimization):
         :param n_trials: int
             Set the number of trials during optimization.
         :param direction: str
-            Set the direction of the optimization. Can be "maximize" or "minimize".
+            Set the direction of the optimization. Can be "maximize" or "minimize". Both tasks give a score where
+            higher is better (classification: weighted accuracy/precision/loss, regression: R2), so keep it as
+            maximize.
         :param patience: int
             Set the number of patience for early stopping. This param is not optimized and should be set by the user.
             Defaults to 30.
@@ -194,7 +208,8 @@ class Keras_opt(Optimization):
             created from the input dictionary params.
         :param metrics: Union[str, list]
             Set the type of metrics to output of the model. Can be 'mini' or 'all' is supported, and will produce
-            ['accuracy', 'precision'] or ['accuracy', Precision(), Recall()], respectively. If a list is given, items
+            ['accuracy', 'precision'] or ['accuracy', Precision(), Recall()], respectively. For regression models,
+            'mini' or 'all' will produce ['mae'] or ['mae', RootMeanSquaredError()]. If a list is given, items
             must correspond to Keras metric classes.
         :param patience: int
             Set the model early stopping. Defaults to 30.
@@ -213,7 +228,7 @@ class Keras_opt(Optimization):
             pass
 
         # set model shape
-        shape = (self.features.shape[1],)
+        shape = self._input_shape()
 
         # set input dictionary into settings, else set to None
         activation = params.get("activation", None)
@@ -224,7 +239,7 @@ class Keras_opt(Optimization):
         momentum = params.get("momentum", None)
         n_layers = params.get("n_layers", None)
         optimizer = params.get("optimizer", None)
-        reg_type = params.get("reg_type", None)
+        reg_type = params.get("regularizer", None)  # name of the trial param set in _trial_space
         units = params.get("units", None)
         unit_decay = params.get("unit_decay", None)
 
@@ -253,7 +268,7 @@ class Keras_opt(Optimization):
         optimizer = trial.suggest_categorical("optimizer", optimizers)
         # optimizer hyperparameters
         learning_rate = trial.suggest_float("lr", learning_rate[0], learning_rate[1], log=True)
-        momentum = trial.suggest_float("momentum", 0.0, 0.9) if optimizer == "sgd" else 0.0
+        momentum = trial.suggest_float("momentum", 0.0, 0.9) if optimizer.lower() == "sgd" else 0.0
 
         # set regularizers
         reg_type = trial.suggest_categorical("regularizer", regularizer)
@@ -267,13 +282,23 @@ class Keras_opt(Optimization):
 
         return score
 
+    def _input_shape(self):
+        """support function to get the input shape of the model"""
+        # models without cv are fitted on x_train
+        if self.cv is None and self.x_train is not None:
+            return (self.x_train.shape[1],)
+        # features from CrossVal hold the CV labels, feat_cols is used to count the feature columns only
+        if self.feat_cols is not None:
+            return (CrossVal().slice_data(data=self.features, cols=self.feat_cols).shape[1],)
+        return (self.features.shape[1],)
+
     def _opt_score(self, activation, dropout, l1_lambda, l2_lambda, learning_rate, momentum, n_layers, optimizer,
                    reg_type, units, unit_decay, batch_size, epochs, patience, cv):
         """support function to fit the model and get the score"""
         if cv is None:
             try:
                 # build model
-                shape = (self.features.shape[1],)
+                shape = self._input_shape()
                 trial_model, trial_callback = self._build_model(shape, activation, dropout, l1_lambda, l2_lambda,
                                                                 learning_rate, momentum, n_layers, optimizer, reg_type,
                                                                 units, unit_decay, patience)
@@ -281,6 +306,10 @@ class Keras_opt(Optimization):
                 # fit model
                 trial_history = trial_model.fit(self.x_train, self.y_train, batch_size=batch_size, epochs=epochs,
                                                 validation_data=(self.x_test, self.y_test), callbacks=[trial_callback])
+
+                # regression is scored by R2 only, the weights are not used
+                if self.task == "regression":
+                    return r2_score(self.y_test, trial_model.predict(self.x_test).ravel())
             except (ValueError, TypeError) as e:
                 print(e, " Pruning...")
                 raise optuna.exceptions.TrialPruned()
@@ -298,7 +327,7 @@ class Keras_opt(Optimization):
             assert 0.0 <= self.precision_w <= 1.0
 
             # set weights, must total 1
-            t_weight = 1.0 - w_loss
+            t_weight = 1.0 - self.loss_w
             w_prec = t_weight * self.precision_w
             w_acc = t_weight - w_prec
 
@@ -308,21 +337,24 @@ class Keras_opt(Optimization):
             return score
         # get cv scores
         else:
-            # ensure the input table with the CV labels are removed. Used to get shape of model.
-            cross_val = CrossVal()
-            features_cv = cross_val.slice_data(data=self.features, cols=self.feat_cols)
-            labels_cv = cross_val.slice_data(data=self.labels, cols=self.activity_cols)
-
-            # build model
-            shape = (features_cv.shape[1],)
+            # build model. The shape is taken without the CV labels of the input table
+            shape = self._input_shape()
             trial_model, trial_callback = self._build_model(shape, activation, dropout, l1_lambda, l2_lambda,
                                                             learning_rate, momentum, n_layers, optimizer, reg_type,
                                                             units, unit_decay, patience)
 
             # get cv scores
-            cross_val = CrossVal()
-            scores = cross_val.get_cv_scores(self.features, self.labels, model=trial_model, cv=self.cv,
-                                             callbacks=trial_callback, epochs=epochs, batch_size=batch_size)
+            cross_val = CrossVal(task=self.task)
+            try:
+                scores = cross_val.get_cv_scores(self.features, self.labels, model=trial_model, cv=self.cv,
+                                                 callbacks=trial_callback, epochs=epochs, batch_size=batch_size)
+            except (ValueError, TypeError) as e:
+                print(e, " Pruning...")
+                raise optuna.exceptions.TrialPruned()
+
+            # regression is scored by R2 only, the weights are not used
+            if self.task == "regression":
+                return scores["R2_avg"]
 
             # get scores
             val_loss = np.mean(scores.get("Loss"))
@@ -373,8 +405,21 @@ class Keras_opt(Optimization):
             # dropout layer
             model.add(Dropout(rate=dropout))
 
-        # output layer
-        model.add(Dense(1, activation="sigmoid"))
+        # output layer, loss and metric options depend on the task
+        if self.task == "regression":
+            model.add(Dense(1))  # linear output
+            loss = "mse"
+            metric_options = {
+                "mini": ["mae"],
+                "all": ["mae", RootMeanSquaredError(name="rmse")],
+            }
+        else:
+            model.add(Dense(1, activation="sigmoid"))
+            loss = "binary_crossentropy"
+            metric_options = {
+                "mini": ["accuracy", Precision(name="precision")],
+                "all": ["accuracy", Precision(name="precision"), Recall(name="recall")],
+            }
 
         # select optimizer for trial
         optimizer = optimizer.lower()  # try to normalize optimizer cases
@@ -398,12 +443,6 @@ class Keras_opt(Optimization):
         # set fallback
         model.to(DEFAULT_DEVICE)
 
-        # options for different metric options
-        metric_options = {
-            "mini": ["accuracy", Precision(name="precision")],
-            "all": ["accuracy", Precision(name="precision"), Recall(name="recall")],
-        }
-
         # defaults to "mini"
         if isinstance(metrics, str):
             compile_metrics = metric_options.get(metrics, None)
@@ -415,7 +454,7 @@ class Keras_opt(Optimization):
             raise ValueError("Model Metrics must be a list of Keras metrics or a string such as 'mini' or 'all'!")
 
         # compile model
-        model.compile(optimizer=trial_opt, loss="binary_crossentropy",
+        model.compile(optimizer=trial_opt, loss=loss,
                       metrics=compile_metrics)
 
         # early stopping

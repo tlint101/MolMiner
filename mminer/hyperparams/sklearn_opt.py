@@ -8,11 +8,11 @@ import optuna
 from optuna.samplers import TPESampler
 from typing import Optional, Union, Iterable, Callable
 from sklearn.base import BaseEstimator
-from sklearn.metrics import accuracy_score, precision_score, matthews_corrcoef
+from sklearn.metrics import accuracy_score, precision_score, matthews_corrcoef, r2_score
 from xgboost import XGBClassifier
 from mminer.models.skmodels import Models
 from mminer.models.split import CrossVal
-from mminer.models.model_constants import PARAM_LIST
+from mminer.models.model_constants import PARAM_TASKS
 from mminer.hyperparams.optimization import Optimization
 
 
@@ -31,7 +31,8 @@ class Sklearn_opt(Optimization):
                  model: Union[str, BaseEstimator] = None,
                  cv: Optional[int] = None,
                  precision_weight: float = 0,
-                 mcc_weight: float = 0
+                 mcc_weight: float = 0,
+                 task: str = "classification"
                  ):
         """
         Initialize the Sklearn_opt clas
@@ -59,8 +60,17 @@ class Sklearn_opt(Optimization):
             Set the weight for the MCC score. The value should be between 0 and 1. This will adjust the weight for the
             model score as (w_acc * accuracy) + (w_prec * precision) + (w_mcc * mcc), with the w_acc and w_prec
             adjusted from the mcc_weight.
+        :param task: str
+            Set the task as 'classification' or 'regression' task. Defaults to 'classification'. The task sets which
+            model a string name points to (e.g. 'rf' is RandomForestClassifier or RandomForestRegressor) and the default
+            search parameters. Regression models are scored by R2 only, so precision_weight and mcc_weight are not
+            used and the direction in opt_model() should stay as 'maximize'.
         """
+        if task not in PARAM_TASKS:
+            raise ValueError(f"Task '{task}' is not supported. Choose from: {list(PARAM_TASKS)}")
+
         super().__init__(x_train, x_test, y_train, y_test, features, labels, model, cv)
+        self.task = task
         self.param_dict = None
         self.precision_w = precision_weight
         self.mcc_w = mcc_weight
@@ -81,10 +91,10 @@ class Sklearn_opt(Optimization):
         """
         # pull model
         model = self.model
-        pull_model = _pull_model(model)
+        pull_model = _pull_model(model, task=self.task)
 
         if param_dict == 'default':
-            params = _get_test_params(model=pull_model)
+            params = _get_test_params(model=pull_model, task=self.task)
             self.param_dict = params
         elif isinstance(param_dict, dict):
             self.param_dict = param_dict
@@ -102,7 +112,8 @@ class Sklearn_opt(Optimization):
         :param n_trials: int
             The number of trials to run.
         :param direction: str
-            Set direction of optimization. Can be minimize or maximize.
+            Set direction of optimization. Can be minimize or maximize. Both tasks give a score where higher is
+            better (classification: weighted accuracy/precision/MCC, regression: R2), so keep it as maximize.
         :param callbacks: Optional[Iterable[Callable[[optuna.Study, optuna.trial.FrozenTrial], None]]]
             Set callbacks during model optimization.
         :param progress: bool
@@ -134,27 +145,19 @@ class Sklearn_opt(Optimization):
         """
         Create an optimized model from the best parameters.
         :param model: Optional[Union[str, BaseEstimator]]
-            Optional. Declare which model to use. Can be a string name, string name in short hand, or as a
-            BaseEstimator.
+            Optional. Declare which model to use. Can be a string name, string name in shorthand, or as a
+            BaseEstimator. If None, the model set in Sklearn_opt() is used. String names follow the task set in
+            Sklearn_opt().
         :param params: Union[dict, str]
             The best parameters obtained from optimization. Must be in dict format.
         :return:
         """
-        # check model instance variable
+        # use the given model, otherwise the model set in Sklearn_opt()
+        model = self.model if model is None else model
+        # if model is still none, raise error
         if model is None:
-            model = self.model
-        elif isinstance(self.model, BaseEstimator):
-            model = self.model
-        elif isinstance(self.model, str):
-            model = _pull_model(self.model)
-            self.model = model  # set model to class BaseEstimator
-        # if input is given
-        elif isinstance(model, str):
-            model = _pull_model(model)
-        elif isinstance(model, BaseEstimator):
-            model = model
-        else:
-            raise ValueError("Model must be given when declaring Sklearn_opt!")
+            raise ValueError("Model must be given in build_opt_model() or when declaring Sklearn_opt!")
+        model = _pull_model(model, task=self.task)
 
         # set params
         if not isinstance(params, (dict, str)):
@@ -195,11 +198,11 @@ class Sklearn_opt(Optimization):
         """Function to build and score model"""
         # pull model
         model = self.model
-        pull_model = _pull_model(model)
+        pull_model = _pull_model(model, task=self.task)
 
         # pull default params if params not given
         if self.param_dict is None:
-            self.param_dict = _get_test_params(model=pull_model)
+            self.param_dict = _get_test_params(model=pull_model, task=self.task)
             param_grid = self.param_dict
         else:
             param_grid = self.param_dict
@@ -234,6 +237,11 @@ class Sklearn_opt(Optimization):
 
             # get scores
             predictions = trial_model.predict(self.x_test)
+
+            # regression is scored by R2 only, no weights needed
+            if self.task == "regression":
+                return r2_score(self.y_test, predictions)
+
             accuracy = accuracy_score(self.y_test, predictions)
             precision = precision_score(self.y_test, predictions)
             mcc = matthews_corrcoef(self.y_test, predictions)
@@ -249,12 +257,16 @@ class Sklearn_opt(Optimization):
             return opt_score
         # get cv scores
         else:
-            cross_val = CrossVal()
+            cross_val = CrossVal(task=self.task)
             try:
                 results = cross_val.get_cv_scores(self.features, self.labels, model=trial_model, cv=self.cv)
             except (ValueError, TypeError) as e:
                 print(e, " Pruning...")
                 raise optuna.exceptions.TrialPruned()
+
+            # regression is scored by R2 only, no weights needed
+            if self.task == "regression":
+                return results['R2_avg']
 
             # set weights
             t_weight = 1.0 - self.mcc_w
@@ -274,9 +286,9 @@ class Sklearn_opt(Optimization):
 """Support Functions"""
 
 
-def _get_test_params(model=None):
+def _get_test_params(model=None, task="classification"):
     """
-    Support function to get parameters for skmodels.
+    Support function to get parameters for skmodels. The default param grids are pulled by task.
     """
 
     if isinstance(model, type):
@@ -286,8 +298,8 @@ def _get_test_params(model=None):
     else:
         raise ValueError(f"Model should be a class or an instance. Got {type(model)}")
 
-    # Pull param grid from PARAM_LIST by comparing model names
-    for param in PARAM_LIST:
+    # Pull param grid from the task's param list by comparing model names
+    for param in PARAM_TASKS[task]:
         if model_name == param.name:
             return param.param_grid
         elif model_name == param.estimator.__name__.lower():  # Compare class name of estimator
@@ -337,12 +349,12 @@ def _parse_params(trial, param_grid, model):
     return trial_param
 
 
-def _pull_model(query_model=None):
+def _pull_model(query_model=None, task="classification"):
     """
-    Support function to pull skmodel.
+    Support function to pull skmodel. String names are matched against the task's models.
     """
     # pull param grid from NamedTuple list if string
-    for model in PARAM_LIST:
+    for model in PARAM_TASKS[task]:
         if query_model == model.name or query_model == model.full_name:
             return model.estimator()
         else:
@@ -353,11 +365,11 @@ def _pull_model(query_model=None):
         return query_model
     # if pulling from model not in constant
     elif isinstance(query_model, str):
-        skmodel = Models()
+        skmodel = Models(task=task)
         pull_model = skmodel.get_sk_model(query_model)
         return pull_model
     else:
-        raise ValueError(f"Cannot find {query_model} . Try 'lr', 'rf', 'svc', 'knn', 'xgb'.")
+        raise ValueError(f"Cannot find {query_model} . Try {[model.name for model in PARAM_TASKS[task]]}.")
 
 
 if __name__ == "__main__":
