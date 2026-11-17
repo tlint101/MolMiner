@@ -1,6 +1,6 @@
 [project]
 name = "MolMiner"
-version = "0.0.3"
+version = "0.0.4"
 description = "Tools for Cheminformatic Workflows."
 authors = [{ name = "Tony Eight Lin", email = "tonyelin@tmu.edu.tw" }]
 requires-python = ">=3.11"
@@ -39,6 +39,7 @@ ml = [
     "keras>=3.13.2",
     "xgboost>=3.2.0",
     "optuna>=4.2.1",
+    "pydot>=3.0.0",
 ]
 docking = [
     "prolif>=2.1.0",
