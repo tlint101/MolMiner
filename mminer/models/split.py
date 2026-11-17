@@ -6,6 +6,7 @@ import os
 
 os.environ.setdefault("KERAS_BACKEND", "torch")
 
+import xgboost  # load xgboost first to avoid torch crash
 import keras
 import re
 import pandas as pd

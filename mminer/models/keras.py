@@ -6,6 +6,7 @@ import os
 
 os.environ["KERAS_BACKEND"] = "torch"
 
+import xgboost  # load xgboost first to avoid torch crash
 import torch
 import keras
 from keras.src.regularizers import L2

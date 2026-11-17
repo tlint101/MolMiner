@@ -12,6 +12,7 @@ from optuna.trial import TrialState
 import matplotlib.pyplot as plt
 import seaborn as sns
 from typing import Optional, Union, Tuple
+import xgboost  # load xgboost first to avoid torch crash
 from sklearn.base import BaseEstimator
 
 os.environ.setdefault("KERAS_BACKEND", "torch")
