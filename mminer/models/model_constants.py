@@ -2,11 +2,11 @@
 Script to hold default model and their parameter values
 """
 from collections import namedtuple
-from xgboost import XGBClassifier
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.svm import SVC
+from xgboost import XGBClassifier, XGBRegressor
+from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
+from sklearn.linear_model import LogisticRegression, Ridge, ElasticNet
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.svm import SVC, SVR
 import numpy as np
 import random
 
@@ -24,6 +24,8 @@ warnings.filterwarnings(
     category=ConvergenceWarning,
     module="sklearn.linear_model.LogisticRegression",
 )
+
+"""Default Classification param grids"""
 
 lr_param_grid = {
     "max_iter": (800, 3000),
@@ -81,9 +83,59 @@ xgb_param_grid = {
     "min_child_weight": (0, 20),
     "subsample": (0.1, 1.0),
     "colsample_bytree": (0.3, 1.0),
-    "objective": ["reg:squarederror", "binary:logistic"],
+    "objective": ["binary:logistic"],
     "max_delta_step": [0, 1],
     "scale_pos_weight": (1, 10),
+    "random_state": [random_seed],
+    "n_jobs": [-1]
+}
+
+"""Default Regression param grids"""
+ridge_param_grid = {
+    "alpha": (0.001, 100.0, "log"),
+    "fit_intercept": [True, False],
+    "random_state": [random_seed],
+}
+
+enet_param_grid = {
+    "max_iter": (1000, 5000),
+    "alpha": (0.0001, 10.0, "log"),
+    "l1_ratio": (0.01, 1.0),  # l1_ratio=0 (pure L2) does not converge well, use ridge instead
+    "selection": ["cyclic", "random"],
+    "tol": (0.00001, 0.001),
+    "random_state": [random_seed],
+}
+
+rf_reg_param_grid = {
+    "n_estimators": (10, 500),
+    "max_depth": (1, 30),
+    "min_samples_split": (2, 15),
+    "min_samples_leaf": (1, 10),
+    "max_features": [None, "sqrt", "log2"],
+    "bootstrap": [True, False],
+    "criterion": ["squared_error", "absolute_error"],
+    "random_state": [random_seed],
+    "n_jobs": [-1]
+}
+
+svr_param_grid = {
+    "max_iter": 10000,
+    "C": (0.1, 10.0),
+    "epsilon": (0.01, 1.0, "log"),
+    "kernel": ["linear", "poly", "rbf", "sigmoid"],
+    "gamma": (0.1, 20),
+    "degree": (1, 5),  # param only used with poly
+    "tol": (0.00001, 0.01),
+}
+
+xgb_reg_param_grid = {
+    "max_depth": (2, 20),
+    "n_estimators": (5, 200),
+    "eta": (0.001, 0.8),
+    "min_child_weight": (0, 20),
+    "subsample": (0.1, 1.0),
+    "colsample_bytree": (0.3, 1.0),
+    "objective": ["reg:squarederror"],
     "random_state": [random_seed],
     "n_jobs": [-1]
 }
@@ -96,3 +148,18 @@ PARAM_LIST = [
     PARAM("knn", knn_param_grid, KNeighborsClassifier, "K-Nearest Neighbors"),
     PARAM("xgb", xgb_param_grid, XGBClassifier, "XGBoost"),
 ]
+
+REG_PARAM_LIST = [
+    PARAM("ridge", ridge_param_grid, Ridge, "Ridge Regression"),
+    PARAM("enet", enet_param_grid, ElasticNet, "Elastic Net"),
+    PARAM("rf", rf_reg_param_grid, RandomForestRegressor, "Random Forest"),
+    PARAM("knn", knn_param_grid, KNeighborsRegressor, "K-Nearest Neighbors"),
+    PARAM("svr", svr_param_grid, SVR, "Support Vector"),
+    PARAM("xgb", xgb_reg_param_grid, XGBRegressor, "XGBoost"),
+]
+
+# task -> default param grids
+PARAM_TASKS = {
+    "classification": PARAM_LIST,
+    "regression": REG_PARAM_LIST,
+}
