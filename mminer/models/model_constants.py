@@ -59,7 +59,7 @@ rf_param_grid = {
 }
 
 svc_param_grid = {
-    "max_iter": 10000,
+    "max_iter": [10000],
     "C": (0.1, 10.0),
     "kernel": ["linear", "poly", "rbf", "sigmoid"],
     "gamma": (0.1, 20),
@@ -119,7 +119,7 @@ rf_reg_param_grid = {
 }
 
 svr_param_grid = {
-    "max_iter": 10000,
+    "max_iter": [10000],
     "C": (0.1, 10.0),
     "epsilon": (0.01, 1.0, "log"),
     "kernel": ["linear", "poly", "rbf", "sigmoid"],

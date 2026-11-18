@@ -327,9 +327,9 @@ def _parse_params(trial, param_grid, model):
             trial_param.update(_parse_params(trial, value[choice], model))
             continue
 
-        # fixed values
+        # fixed values: register through Optuna so study.best_params / best_solutions() preserves them
         if not isinstance(value, (tuple, list)):
-            trial_param[param] = value
+            trial_param[param] = trial.suggest_categorical(param, [value])
             continue
 
         # trial params for int, float, or categorical

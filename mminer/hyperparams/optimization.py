@@ -148,8 +148,11 @@ class Optimization:
         df_params = trials_df.filter(regex='params_', axis=1)
         cols = df_params.columns.str.replace('params_', '', regex=True)
         df_params = df_params.rename(columns=dict(zip(df_params.columns, cols)))
-        # remove columns n_jobs and random_state associated with sklearn models
+        # remove non-searched columns (n_jobs, random_state) and any fixed/constant columns (e.g. SVC max_iter)
         df_params = df_params.drop(columns=[col for col in ['n_jobs', 'random_state'] if col in df_params])
+        constant_cols = [col for col in df_params.columns if df_params[col].nunique(dropna=True) <= 1]
+        if len(constant_cols) < len(df_params.columns):
+            df_params = df_params.drop(columns=constant_cols)
 
         # convert categorical data to numbers
         for col in df_params.columns:
