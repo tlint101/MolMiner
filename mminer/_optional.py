@@ -19,19 +19,17 @@ _EXTRA_FOR_MODULE = {
     "keras": "ml",
     "xgboost": "ml",
     "optuna": "ml",
-    "prolif": "docking",
     "meeko": "docking",
-    "vina": "vina",
 }
 
-# Extra install guidance for dependencies that pip cannot always provide.
-_EXTRA_NOTES = {
+# Packages that must be installed from conda-forge (via Pixi or Conda) rather than PyPI.
+_CONDA_ONLY_INSTALL = {
     "vina": (
-        "\n\nNote: 'pip install vina' only has wheels for linux x86_64 on Python 3.8-3.12. "
-        "On macOS, Windows, or Python >= 3.13 install it from conda-forge instead:\n"
-        "    conda install -c conda-forge vina\n"
-        "Receptor preparation additionally needs AutoDockTools_py3:\n"
-        "    pip install git+https://github.com/Valdes-Tresanco-MS/AutoDockTools_py3"
+        "'vina' lacks PyPI wheels on macOS, Windows, and Python >= 3.13.\n"
+        "Install it from conda-forge using Pixi or Conda:\n"
+        "    pixi add vina\n"
+        "    # or\n"
+        "    conda install -c conda-forge vina"
     ),
 }
 
@@ -43,13 +41,17 @@ class MissingExtraError(ImportError):
 def _missing_extra_error(module: str, extra: Optional[str] = None,
                          feature: Optional[str] = None) -> "MissingExtraError":
     """Build the install-hint error for a missing optional dependency."""
-    extra = extra or _EXTRA_FOR_MODULE.get(module, module)
     feature = feature or module
+    if module in _CONDA_ONLY_INSTALL:
+        return MissingExtraError(
+            f"{feature} requires '{module}', which is not installed.\n"
+            f"{_CONDA_ONLY_INSTALL[module]}"
+        )
+    extra = extra or _EXTRA_FOR_MODULE.get(module, module)
     return MissingExtraError(
         f"{feature} requires the '{extra}' extra, but '{module}' is not installed.\n"
         f"Install it with:\n"
         f"    pip install \"MolMiner[{extra}]\""
-        f"{_EXTRA_NOTES.get(module, '')}"
     )
 
 
@@ -110,7 +112,7 @@ def lazy_exports(package: str, attr_map: dict):
             module = importlib.import_module(f"{package}.{module_name}")
         except ImportError as error:
             missing = (getattr(error, "name", None) or "").split(".")[0]
-            if missing in _EXTRA_FOR_MODULE:
+            if missing in _EXTRA_FOR_MODULE or missing in _CONDA_ONLY_INSTALL:
                 raise _missing_extra_error(missing, feature=name) from error
             raise
         value = getattr(module, name)
