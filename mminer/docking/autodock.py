@@ -356,9 +356,9 @@ class Vina:
         """
         Dock query ligands into a protein receptor without leaving per-molecule .pdbqt files on disk.
 
-        When ``sdf_savepath`` is given, poses are streamed straight into a single combined .sdf file
-        one ligand at a time (constant O(1) pose memory for large libraries) and ``str(sdf_savepath)``
-        is returned. When ``sdf_savepath`` is omitted, poses are returned in memory (and stored on
+        When ``savepath`` is given, poses are streamed straight into a single combined .sdf file
+        one ligand at a time (constant O(1) pose memory for large libraries) and ``str(savepath)``
+        is returned. When ``savepath`` is omitted, poses are returned in memory (and stored on
         ``self.docking_poses``) for saving via ``save_dock_results()``.
 
         :param receptor: str or Path
@@ -386,7 +386,7 @@ class Vina:
         :param savepath: str or Path, optional
             Output filepath to stream all docked poses directly into a single combined .sdf file.
         :return: str or list
-            Path to the written .sdf file when ``sdf_savepath`` is provided, otherwise a list of
+            Path to the written .sdf file when ``savepath`` is provided, otherwise a list of
             in-memory pose records for ``save_dock_results()``.
         """
         scoring = self.sf_name if scoring is None else scoring
@@ -505,7 +505,7 @@ class Vina:
             dock_result = self.docking_poses
             if dock_result is None:
                 raise ValueError(
-                    "No in-memory docking poses available! If you passed sdf_savepath to dock(), "
+                    "No in-memory docking poses available! If you passed savepath to dock(), "
                     "poses were already streamed directly to that .sdf file."
                 )
         if sdf_savepath is None:
