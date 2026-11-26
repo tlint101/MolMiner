@@ -7,14 +7,14 @@ from mminer._optional import lazy_exports
 # base install does not pay for extras it never uses.
 _exports = {
     "Vina": "autodock",
-    "calculate_rmsd": "interactions",
-    "Interactions": "interactions",
+    "calculate_rmsd": "utils",
+    "plot_3d": "utils",
 }
 
 __all__ = [
     "Vina",
     "calculate_rmsd",
-    "Interactions",
+    "plot_3d",
 ]
 
 __getattr__, __dir__ = lazy_exports(__name__, _exports)
