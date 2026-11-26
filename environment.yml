@@ -9,14 +9,16 @@ dependencies:
   - openbabel
   - vina
   - swig  # for autodock
+  - graphviz  # dot binary for keras plot_model
   - pip
   - pip:
       - MolMiner
       - notebook
       - pandas
       - rdkit
-      - scikit-learn==1.6.1
+      - scikit-learn>=1.8
       - keras
+      - pydot  # for keras plot_model
       - scikeras
       - torch
       - optuna
@@ -28,8 +30,6 @@ dependencies:
       - safe-mol==0.1.13
       - transformers<5.0.0  # for safe-mol
       - mols2grid
-      - prolif
       - xgboost
       - meeko
       - gemmi  # meeko dependency
-      - git+https://github.com/Valdes-Tresanco-MS/AutoDockTools_py3 # AutoDock Tools py3 translation
